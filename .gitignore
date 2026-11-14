@@ -1,2 +1,17 @@
 .claude/
 node_modules/
+
+# Unity
+unity-pioneer-base/Library/
+unity-pioneer-base/Temp/
+unity-pioneer-base/Logs/
+unity-pioneer-base/obj/
+unity-pioneer-base/UserSettings/
+unity-pioneer-base/Builds/
+unity-pioneer-base/*.csproj
+unity-pioneer-base/*.sln
+
+unity-pioneer-base/Assets/Screenshots/
+unity-pioneer-base/Assets/Screenshots.meta
+csharp-tests/bin/
+csharp-tests/obj/

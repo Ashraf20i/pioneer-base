@@ -1,0 +1,269 @@
+PIONEER BASE - CORRESPONDANCE AVEC LE CAHIER DES CHARGES
+=========================================================
+Equipe : Novapollo Hexad | NASA Space Apps Casablanca 2026
+Defi   : Build a Junior Astronaut Mission Trainer
+Depot  : https://github.com/Ashraf20i/pioneer-base (prive pour l'instant)
+
+Legende :  [FAIT] conforme au cahier | [FAIT*] fait avec un ecart (explique)
+           [A FAIRE PAR L'EQUIPE] ce que je ne peux pas faire a votre place
+
+
+-----------------------------------------------------------------
+1. CE QUE JE LIVRE EN UNE PHRASE
+-----------------------------------------------------------------
+Un jeu web au tour par tour (HTML/CSS/JS, sans serveur, sans internet) ou
+un eleve de 9 a 14 ans dirige une base lunaire ou martienne pendant 30
+jours ; l'ecran de fin montre la chaine exacte de decisions qui a fait
+reussir ou echouer la mission.
+
+Fichiers :
+  index.html            la page (inclut le guide enseignant)
+  css/style.css         styles
+  js/data.js            TOUTES les constantes, avec tag + explication + source
+  js/sim.js             moteur de simulation (pur, sans DOM, testable dans Node)
+  js/debrief.js         chaine de causes, compromis, conseil
+  js/ui.js              affichage et boutons
+  tests/                tests Node + joueurs simules
+  README.md, SOURCES.md, SUBMISSION.md, DEMO_SCRIPT.md, DECISIONS.md
+
+
+-----------------------------------------------------------------
+2. LE DEFI : MOTS DU DEFI -> OU DANS LE JEU        (cahier section 1)
+-----------------------------------------------------------------
+[FAIT] lunar or Martian outpost   -> choix Lune / Mars au depart, problemes
+                                     differents (nuit de 15 jours / poussiere)
+[FAIT] life support               -> oxygene, eau, recyclage, sante
+[FAIT] radiation shielding        -> 3 couches de blindage, abri, dose cumulee
+[FAIT] power                      -> panneaux, batteries, reacteur, delestage
+                                     en cascade
+[FAIT] food production            -> serre (cycle 10 jours), rationnement
+[FAIT] decisions -> fail/succeed  -> ecran de debriefing avec chaine de causes
+
+
+-----------------------------------------------------------------
+3. POINTS FAIBLES CORRIGES                          (cahier section 2)
+-----------------------------------------------------------------
+[FAIT] La radiation menace vraiment : Lune 1,37 mSv/jour = 41 mSv en 30 jours
+       > limite 40 mSv. Sans blindage, impossible de finir (teste : 0 reussite).
+[FAIT] Mission de 30 jours, nuit lunaire jours 11-25 (15 tours).
+[FAIT] Tour par tour (pas de temps reel).
+[FAIT] Toutes les consommations sont chiffrees (js/data.js).
+[FAIT] Recolte en 10 jours etiquetee Simplified, vraie duree (environ un
+       mois sur l'ISS) affichee a cote.
+[FAIT] Originalite : chaine de causes, tags Real/Derived/Simplified,
+       Myth or Reality, rationnement, guide enseignant.
+[FAIT] Valeurs a jour : ISS 98 %, Lune 1,37 mSv/jour, dates DONKI.
+[FAIT] Perimetre en 3 niveaux (voir section 5).
+[FAIT] Equilibrage garanti par tests automatiques (voir section 8).
+
+
+-----------------------------------------------------------------
+4. DEROULEMENT DU JEU                               (cahier section 3)
+-----------------------------------------------------------------
+[FAIT] Briefing : choix Lune/Mars + 3 phrases d'explication.
+[FAIT] Chaque jour le joueur planifie :
+         - Systemes on/off : usine a O2, serre(s), foreuse(s), laboratoire
+           (habitat toujours allume)
+         - Activite unique : Science, Maintenance ou Abri
+         - Ration : pleine, reduite (75 %), demi (50 %)
+         - Construction : caisses -> modules (actifs des le lendemain)
+         - Apercu en direct : energie produite/necessaire, systemes qui
+           s'eteindraient, "epuise dans N jours" pour O2, eau, nourriture
+[FAIT] "Run day" : le moteur calcule dans l'ordre du cahier (modules du jour
+       precedent, environnement, energie, eau, O2/nourriture, radiation,
+       sante/science, fin de jour).
+[FAIT] Delestage en cascade : labo, foreuses, serres, usine O2, habitat.
+       Si l'habitat s'eteint, le recyclage de l'eau s'arrete aussi.
+[FAIT] Fin : jour 30 atteint, ou evacuation (sante 0 ou dose > 40 mSv).
+       Le mot "mort" n'apparait jamais (teste automatiquement).
+[FAIT] Debriefing : etoiles, graphique des 30 jours, chaine de causes
+       (3 a 6 etapes construites depuis le journal reel de la partie),
+       compromis nomme, conseil, bouton "Try again".
+
+Differences Lune / Mars :
+[FAIT] Lune : nuit de 15 jours, forte radiation, electrolyse (4 O + 4,5 L eau),
+       2 tempetes solaires (jours 7 et 20, +/-1).
+[FAIT] Mars : poussiere -3 %/jour (plancher 40 %), tempete de poussiere
+       jours 12-17 (annoncee 2 jours avant), 1 tempete solaire jour 23,
+       oxygene type MOXIE (6 energie, pas d'eau).
+
+Les six dilemmes : tous presents (panneaux/reacteur, blindage/modules,
+abri/science, serre/rationnement, eau a boire/cultiver/O2, nettoyer/science).
+
+
+-----------------------------------------------------------------
+5. PERIMETRE                                        (cahier section 4)
+-----------------------------------------------------------------
+NIVEAU 1 (obligatoire) :
+[FAIT] Lune/Mars, 30 jours, moteur complet.
+[FAIT] Systemes, activite, ration, construction, delestage.
+[FAIT] Nuit lunaire, tempetes solaires avec alerte, poussiere et tempete.
+[FAIT] Apercu du jour + "epuise dans N jours".
+[FAIT*] Tag Real/Derived/Simplified : present sur les jauges, commandes, couts
+        et dans le panneau de donnees. PAS encore sur les chiffres du texte
+        d'apercu et du rapport quotidien (a ajouter si vous voulez).
+[FAIT] Debriefing : etoiles, graphique, chaine de causes, conseil.
+[FAIT] Aide guidee jours 1 a 3 (Mission Control, fermable).
+[FAIT] 6 cartes Myth or Reality + guide enseignant d'une page (imprimable).
+[FAIT] Tests automatiques d'equilibrage.
+[FAIT] Ordinateur, tablette, telephone (teste a 375 px et 1280 px, pas de
+       defilement horizontal).
+
+NIVEAU 2 (apres niveau 1 teste) :
+[FAIT] Panne d'equipement une fois par mission (jour 8 a 13), reparation
+       1 caisse ou 3 jours de Maintenance.
+[FAIT] Urgence "carburant -> eau" : une fois, +40 L, 20 % de risque
+       d'abimer un module.
+[FAIT] Tests d'equilibrage relances apres ajout : tous passent.
+
+NIVEAU 3 / EXCLU : non fait, comme prevu (sons, sauvegarde, traduction,
+niveaux de difficulte ; compte, serveur, API en direct, 3D, temps reel,
+multijoueur).
+
+
+-----------------------------------------------------------------
+6. VALEURS DE LA SIMULATION                         (cahier section 5)
+-----------------------------------------------------------------
+Valeurs REELLES : toutes presentes et verrouillees par un test automatique
+(1361 W/m2, 1,524 UA, 43 % derive, nuit 15 tours, 0,67 et 1,37 mSv/jour,
+0,84 kg O2, 1,8 kg nourriture, ISS 98 %, 2 dates DONKI, limite NASA 600 mSv).
+
+Valeurs SIMPLIFIEES : toutes celles du cahier sont reprises, SAUF 2 ajustees
+par les tests (voir DECISIONS.md) :
+  [FAIT*] Nourriture de depart : 130 kg -> 150 kg
+          (a 130, le meilleur plan lunaire finissait mais avec sante ~58,
+           donc 0 % de 3 etoiles ; il en faut au moins 50 %)
+  [FAIT*] Tempete de poussiere : solaire x0,25 -> x0,15
+          (a 0,25 un joueur martien qui ne construisait rien gagnait
+           toujours ; le choix "reacteur ou plus de panneaux" ne comptait pas)
+Ajoutes (non precises dans le cahier) : max 6 panneaux, 4 batteries,
+3 serres, 3 foreuses, stock de nourriture 250 kg.
+
+Etoiles : 1 = 30 jours ; 2 = science >= 30 ; 3 = science >= 45, sante >= 70,
+dose <= 35 (Lune) ou 22 (Mars). Conforme.
+
+
+-----------------------------------------------------------------
+7. INTERFACE                                        (cahier section 6)
+-----------------------------------------------------------------
+[FAIT] En-tete : site, "Day X of 30", frise des 30 jours (jour, nuit,
+       evenements annonces).
+[FAIT] Jauges : energie, batterie, oxygene, eau, nourriture, dose, sante,
+       science, avec tendance et "epuise dans N jours".
+[FAIT] Vue de la base en SVG : modules qui s'allument/s'eteignent, panneaux
+       couverts de poussiere sur Mars, couches de blindage visibles.
+[FAIT] Decisions, alertes, gros bouton "Run day" (colle en bas sur telephone).
+[FAIT] Panneau "Where do these numbers come from?" genere depuis js/data.js
+       (77 valeurs, tag, explication, lien source).
+[FAIT] Anglais, phrases courtes. Icone + couleur + texte ensemble.
+       Utilisable au clavier. Aucune animation (respecte reduced-motion).
+[FAIT] Aucun logo NASA ; mention "Not affiliated with or endorsed by NASA" ;
+       aucun nom/image/personnage de film.
+
+
+-----------------------------------------------------------------
+8. QUALITE ET TESTS                                 (cahier section 7)
+-----------------------------------------------------------------
+Commande : npm test   (environ 25 s ; Node, sans dependance)
+
+Resultats sur 200 parties par site :
+
+  Joueur simule              Exige              Lune     Mars
+  --------------------------------------------------------------
+  Ne fait rien               echoue toujours    100 %    100 %   (evacue)
+  Naif                       echoue >= 90 %     100 %    100 %   (evacue)
+  Correct mais imparfait     finit 40-90 %      58,5 %   85 %
+  Expert                     finit >= 95 %      100 %    100 %
+  Expert, 3 etoiles          >= 50 %            92 %     100 %
+
+Plans impossibles (recherche sur des listes de construction aleatoires) :
+  - Lune sans reacteur ni blindage : 0 reussite sur 400
+  - Lune avec blindage mais sans reacteur : 0 sur 400
+  - Lune avec reacteur mais sans blindage : 0 sur 400
+  - Mars qui ignore la poussiere (pas de nettoyage, pas de reacteur) : 0 sur 400
+
+Autres controles (tous OK) : aucune valeur negative/NaN/au-dessus de la
+capacite ; meme graine = meme partie ; chaque fin a une chaine de causes de
+3 a 6 etapes ; aucun appel reseau ; aucun module ES ; aucune ressource externe.
+Jeu joue dans un vrai navigateur : victoire et defaite sur la Lune et sur
+Mars, console propre, fonctionne ouvert depuis le disque.
+
+[A FAIRE PAR L'EQUIPE] TEST HUMAIN OBLIGATOIRE : 3 personnes qui n'ont jamais
+vu le jeu finissent une partie sans explication (idealement une de 9 a 14 ans,
+sans la filmer). Les joueurs simules ne sont pas des enfants.
+
+
+-----------------------------------------------------------------
+9. LIVRABLES                                        (cahier section 8)
+-----------------------------------------------------------------
+[FAIT]  1. Jeu + depot : code pousse sur GitHub (prive).
+[A FAIRE PAR L'EQUIPE] le passer en public et activer GitHub Pages
+        (commande et etapes dans README.md).
+[FAIT]  2. README.md, SOURCES.md (genere depuis data.js), guide enseignant
+        (dans le jeu, imprimable).
+[FAIT]  3. Page projet en anglais : SUBMISSION.md (brouillon).
+[A FAIRE PAR L'EQUIPE] remplir les 3 liens, citer une ressource de l'onglet
+        "Resources" du defi s'il existe.
+[FAIT]  4. Scenario de la video 30 s : DEMO_SCRIPT.md.
+[A FAIRE PAR L'EQUIPE] enregistrer et monter la video avec sous-titres.
+[FAIT]  5. Declaration d'usage de l'IA (README.md et SUBMISSION.md).
+
+
+-----------------------------------------------------------------
+10. LES 5 CRITERES DU JURY                        (cahier section 11)
+-----------------------------------------------------------------
+Impact       : utilisable en classe en une seance, sans installation, avec
+               guide enseignant imprimable.
+Creativity   : chaine de causes du debriefing, tags de donnees, rationnement,
+               Myth or Reality, pannes et urgence.
+Validity     : valeurs reelles verrouillees et sourcees, simplifications
+               avouees, equilibrage teste automatiquement.
+Relevance    : les 4 demandes du defi sont des mecaniques ; dates de
+               tempetes tirees de NASA DONKI.
+Presentation : DEMO_SCRIPT.md centre sur une decision (pas de reacteur) et
+               sa consequence (la nuit, tout s'eteint, le debrief l'explique).
+
+
+-----------------------------------------------------------------
+11. CE QUI N'EST PAS VERIFIE / LIMITES                    (important)
+-----------------------------------------------------------------
+Liste complete dans SOURCES.md, section "To verify by the team". Les points
+principaux :
+  1. NASA DONKI : l'API a repondu 404, donc le jeu n'affiche AUCUN ID, classe
+     ou heure de flare, seulement les deux dates (11 mai 2024, 3 oct 2024).
+  2. Doses de radiation 0,67 et 1,37 mSv/jour : les liens DOI renvoient 403
+     aux scripts. A ouvrir dans un navigateur et confirmer.
+  3. O2 0,84 kg et nourriture 1,8 kg par jour : je n'ai pas trouve une page
+     NASA qui confirme les deux chiffres.
+  4. 1361 W/m2 et limite de carriere 600 mSv : les pages s'ouvrent mais le
+     chiffre n'a pas ete retrouve dans le texte.
+  5. Nuit lunaire "14,8 jours" : lecture personnelle de la page NASA Moon
+     Facts (cycle d'environ 29 jours, divise par 2).
+  6. La tempete solaire martienne est etiquetee avec la date du 3 oct 2024 ;
+     le jeu ne pretend pas qu'elle a ete observee sur Mars.
+  7. Les etiquettes n'apparaissent pas sur les chiffres du texte d'apercu
+     et du rapport quotidien.
+  8. Le taux "correct mais imparfait" sur Mars (85 %) est proche du haut de la
+     bande 40-90 %. Si vous facilitez Mars, relancez npm test.
+  9. Un enfant de 10 ans echouera probablement plus que mes joueurs simules :
+     c'est voulu (le debrief est la lecon), mais verifiez avec le test humain.
+
+
+-----------------------------------------------------------------
+12. PLANNING / LISTE AVANT SOUMISSION      (cahier sections 9 et 10)
+-----------------------------------------------------------------
+Pilote technique   : depot cree et pousse ; publier GitHub Pages (public).
+Testeur            : test avec 3 personnes (section 8).
+Sources/page projet: verifier chaque valeur Real (SOURCES.md), finir SUBMISSION.md.
+Demo               : suivre DEMO_SCRIPT.md.
+
+Avant "Submit" :
+  [ ] Les 4 membres sont dans "Members"
+  [ ] Ressource citee si l'onglet "Resources" existe
+  [ ] Page projet entierement en anglais
+  [ ] Video <= 30 s, vrai jeu, sous-titres anglais
+  [ ] Liens jeu + depot ouverts en navigation privee
+  [ ] Sources/outils/donnees dans "References"
+  [ ] Usage de l'IA declare
+  [ ] Regle sur les mineurs dans la demo verifiee
+  [ ] Cases d'accord cochees, bouton Submit clique
