@@ -47,6 +47,7 @@ a { color: var(--cyan); }
 .brand-mark { color: var(--accent); font-size: 1.5rem; }
 .hud { display: flex; gap: .5rem; flex-wrap: wrap; }
 .chip { background: var(--card2); border: 1px solid var(--line); border-radius: 999px; padding: .2rem .75rem; font-weight: 700; font-size: .95rem; }
+.chip-broken { background: #40161f; border-color: var(--bad); color: #ffd7dc; }
 .chip-day { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
 .top-nav { display: flex; gap: .4rem; flex-wrap: wrap; }
 
@@ -243,7 +244,7 @@ main { max-width: 1240px; margin: 0 auto; padding: 1rem; outline: none; }
   .game-grid { display: flex; flex-direction: column; }
   .col-left, .col-right { display: contents; }
   .outpost-panel { order: 1; } #sec-gauges { order: 2; } #sec-report { order: 3; } #sec-preview { order: 4; }
-  #sec-systems { order: 5; } #sec-activity { order: 6; } #sec-ration { order: 7; } #sec-build { order: 8; }
+  #sec-systems { order: 5; } #sec-activity { order: 6; } #sec-ration { order: 7; } #sec-build { order: 8; } #sec-extra { order: 9; }
 }
 @media (max-width: 560px) {
   .gauges { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .4rem; }

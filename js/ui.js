@@ -46,7 +46,7 @@
     var seed = (Date.now() % 100000) + 1;
     G = {
       site: site, st: sim.newGame(site, seed), seed: seed,
-      plan: { oxygen: true, lab: true, gh: [], dr: [], activity: 'science', ration: 'full' },
+      plan: { oxygen: true, lab: true, gh: [], dr: [], activity: 'science', ration: 'full', repair: false, emergency: false },
       cart: {}, reports: [], mythSeen: {}, hintsOff: false, hintDismissedDay: 0
     };
     show('game');
@@ -66,7 +66,7 @@
     return {
       oxygen: p.oxygen, lab: p.lab,
       greenhouse: count(p.gh.slice(0, st.mod.greenhouse)), drill: count(p.dr.slice(0, st.mod.drill)),
-      activity: p.activity, ration: p.ration, build: build
+      activity: p.activity, ration: p.ration, build: build, repair: p.repair, emergency: p.emergency
     };
   }
   function cartCost() {
@@ -130,18 +130,32 @@
     return '<label class="switch"><input type="checkbox" role="switch" data-sw="' + id + '" aria-label="' + esc(label) + '"' + (checked ? ' checked' : '') + (disabled ? ' disabled' : '') + '><span class="track" aria-hidden="true"></span><span class="sw-label">' + (checked ? 'On' : 'Off') + '</span></label>';
   }
 
+  var FNAME = { oxygen: 'Oxygen plant', lab: 'Science lab', drill: 'Ice drill', greenhouse: 'Greenhouse' };
+  function brokenCount() {
+    var b = { oxygen: 0, lab: 0, drill: 0, greenhouse: 0 };
+    G.st.faults.forEach(function (f) { b[f.type]++; });
+    return b;
+  }
+  function brokenRow(name) {
+    return '<div class="row"><div class="row-text"><strong>' + name + '</strong><small>⚠ Broken. It is offline until it is repaired (step 5).</small></div><span class="chip chip-broken">⚠ Broken</span></div>';
+  }
+
   function renderControls() {
-    var st = G.st, p = G.plan, site = st.site, h = '';
+    var st = G.st, p = G.plan, site = st.site, h = '', brk = brokenCount();
     var o2pPow = site === 'moon' ? 'o2p_power_moon' : 'o2p_power_mars';
     // systems
     h += '<div class="row"><div class="row-text"><strong>Habitat core</strong> <small>Always on. ' + V('hab_power') + ' ⚡ ' + badge('hab_power') + ' It recycles ' + Math.round(V('hab_recycle') * 100) + '% of the crew\'s water ' + badge('hab_recycle') + '</small></div><span class="chip">Always on</span></div>';
+    if (brk.oxygen) { h += brokenRow('Oxygen plant'); } else
     h += '<div class="row"><div class="row-text"><strong>Oxygen plant</strong><small>' + V(o2pPow) + ' ⚡ ' + badge(o2pPow) + ' makes ' + V('o2p_out') + ' kg of oxygen. ' + (site === 'moon' ? 'Splits water: needs ' + V('o2p_water_moon') + ' L ' + badge('o2p_water_moon') : 'Takes oxygen from the air (like MOXIE). No water needed.') + '</small></div>' + sw('oxygen', 'Oxygen plant', p.oxygen) + '</div>';
+    if (brk.lab) { h += brokenRow('Science lab'); } else
     h += '<div class="row"><div class="row-text"><strong>Science lab</strong><small>' + V('lab_power') + ' ⚡ ' + badge('lab_power') + ' +' + V('lab_science') + ' science when the crew does Science</small></div>' + sw('lab', 'Science lab', p.lab) + '</div>';
     for (var g = 0; g < st.mod.greenhouse; g++) {
+      if (g >= st.mod.greenhouse - brk.greenhouse) { h += brokenRow('Greenhouse ' + (g + 1)); continue; }
       var prog = st.gh[g] || 0;
       h += '<div class="row"><div class="row-text"><strong>Greenhouse ' + (g + 1) + '</strong><small>' + V('gh_power') + ' ⚡ ' + badge('gh_power') + ' + ' + V('gh_water') + ' L water. Crop: ' + prog + ' of ' + V('gh_cycle') + ' days ' + badge('gh_cycle') + '</small></div>' + sw('gh' + g, 'Greenhouse ' + (g + 1), p.gh[g]) + '</div>';
     }
     for (var d = 0; d < st.mod.drill; d++) {
+      if (d >= st.mod.drill - brk.drill) { h += brokenRow('Ice drill ' + (d + 1)); continue; }
       h += '<div class="row"><div class="row-text"><strong>Ice drill ' + (d + 1) + '</strong><small>' + V('drill_power') + ' ⚡ ' + badge('drill_power') + ' gives +' + V('drill_out') + ' L water ' + badge('drill_out') + '</small></div>' + sw('dr' + d, 'Ice drill ' + (d + 1), p.dr[d]) + '</div>';
     }
     if (!st.mod.greenhouse && !st.mod.drill) { h += '<p class="muted small">No greenhouse or ice drill yet. You can build them in step 4.</p>'; }
@@ -150,7 +164,7 @@
     // activity
     var acts = [
       ['science', 'Science', '+' + V('lab_science') + ' points if the lab is on'],
-      ['maintenance', 'Maintenance', site === 'mars' ? 'Cleans the dust off the arrays' : 'Nothing needs fixing on the Moon today'],
+      ['maintenance', 'Maintenance', (site === 'mars' ? 'Cleans the dust off the arrays. ' : '') + 'Three days in a row fix a broken module.'],
       ['shelter', 'Shelter', 'Storm dose ÷10. No science.']
     ];
     $('activity').innerHTML = '<div class="choices" role="radiogroup" aria-label="Crew activity">' + acts.map(function (a) {
@@ -169,6 +183,18 @@
     }).join('') + '</div>';
 
     renderBuild();
+    renderExtra();
+  }
+
+  function renderExtra() {
+    var st = G.st, p = G.plan, h = '';
+    if (st.faults.length) {
+      var f = st.faults[0];
+      h += '<p><strong>⚠ The ' + FNAME[f.type].toLowerCase() + ' is broken.</strong> Repair progress: ' + f.mDays + ' of ' + V('repair_days') + ' Maintenance days.</p>';
+      h += '<div class="row"><div class="row-text"><strong>Repair it now with ' + V('repair_crates') + ' crate</strong><small>' + (st.crates >= V('repair_crates') ? 'You have ' + st.crates + ' crates. The module works again today.' : 'You have no crates. Choose Maintenance for ' + V('repair_days') + ' days instead.') + ' ' + badge('repair_crates') + '</small></div>' + sw('repair', 'Repair the broken module with a crate', p.repair && st.crates >= V('repair_crates'), st.crates < V('repair_crates')) + '</div>';
+    } else { h += '<p class="muted">Nothing is broken. A module can break once during the mission.</p>'; }
+    h += '<div class="row"><div class="row-text"><strong>Emergency: turn rocket fuel into water</strong><small>' + (st.emergencyUsed ? 'Already used on day ' + st.emergencyDay + '.' : 'One time only. +' + V('emerg_water') + ' L of water. But there is a ' + Math.round(V('emerg_risk') * 100) + '% chance that one module breaks. ') + ' ' + badge('emerg_water') + '</small></div>' + sw('emergency', 'Use the emergency fuel-to-water action today', p.emergency && !st.emergencyUsed, st.emergencyUsed) + '</div>';
+    $('extra').innerHTML = h;
   }
 
   function renderBuild(focusSel) {
@@ -213,6 +239,7 @@
       var n = pv.runout[r[0]];
       if (n !== null && n <= 4) { h += '<div class="alert danger"><span class="alert-icon" aria-hidden="true">⚠</span><div><strong>' + r[1] + ' is running low.</strong> At today\'s plan it runs out in ' + plural(n, 'day') + '.</div></div>'; }
     });
+    st.faults.forEach(function (f) { h += '<div class="alert danger"><span class="alert-icon" aria-hidden="true">⚠</span><div><strong>Equipment fault:</strong> the ' + FNAME[f.type].toLowerCase() + ' broke on day ' + f.day + '. Repair it in step 5.</div></div>'; });
     if (!pv.habOn) { h += '<div class="alert danger"><span class="alert-icon" aria-hidden="true">⚠</span><div><strong>The habitat core would lose power!</strong> The crew would lose health and water recycling would stop.</div></div>'; }
     $('alerts').innerHTML = h;
   }
@@ -411,6 +438,7 @@
     var rec = sim.runDay(st, plan);
     G.reports.push(rec);
     G.cart = {};
+    G.plan.repair = false; G.plan.emergency = false;
     if (st.over) { showDebrief(); return; }
     var card = PB.DATA.cards.filter(function (c) { return c.afterDay === rec.day && !G.mythSeen[c.id]; })[0];
     renderAll();
@@ -435,6 +463,9 @@
     if (rec.waterEmpty) { h += '<li>⚠ The water ran out! The crew lost health.</li>'; }
     if (rec.foodEmpty) { h += '<li>⚠ The food ran out! The crew lost health.</li>'; }
     if (!rec.habOn) { h += '<li>⚠ The habitat core had no power. Water was not recycled.</li>'; }
+    if (rec.faultNew) { h += '<li>⚠ <strong>Equipment fault:</strong> the ' + FNAME[rec.faultNew].toLowerCase() + ' broke!</li>'; }
+    if (rec.emergency) { h += '<li>The crew turned rocket fuel into water: +' + V('emerg_water') + ' L.' + (rec.emergencyDamage ? ' ⚠ Accident! The ' + FNAME[rec.emergencyDamage].toLowerCase() + ' broke.' : ' No accident.') + '</li>'; }
+    if (rec.repaired) { h += '<li>✔ The ' + FNAME[rec.repaired].toLowerCase() + ' was repaired.</li>'; }
     if (rec.harvest) { h += '<li>🌱 Harvest: +' + rec.harvest + ' kg of food.</li>'; }
     if (rec.cleaned) { h += '<li>The crew cleaned the dust off the arrays.</li>'; }
     if (rec.activated.length) { h += '<li>Now working: ' + rec.activated.map(function (t) { return sim.typeInfo(t).name; }).join(', ') + '.</li>'; }
@@ -616,6 +647,8 @@
       var id = t.dataset.sw, on = t.checked;
       if (id === 'oxygen') { G.plan.oxygen = on; }
       else if (id === 'lab') { G.plan.lab = on; }
+      else if (id === 'repair') { G.plan.repair = on; }
+      else if (id === 'emergency') { G.plan.emergency = on; }
       else if (id.indexOf('gh') === 0) { G.plan.gh[+id.slice(2)] = on; }
       else if (id.indexOf('dr') === 0) { G.plan.dr[+id.slice(2)] = on; }
       t.parentNode.querySelector('.sw-label').textContent = on ? 'On' : 'Off';

@@ -54,13 +54,15 @@
       var j = jit();
       events.dust = { start: sc.dust.start + j, end: sc.dust.end + j, alert: sc.dust.alert };
     }
+    events.fault = { day: 8 + Math.floor(r() * 6), roll: r() };
+    events.emerg = r(); events.emergPick = r();
     return {
       site: site, seed: seed, day: 1, over: false, ending: null,
       o2: V('o2_start'), water: V('water_start'), food: V('food_start'),
       crates: V('crates_start'), battery: V('battery_start'),
       health: V('health_start'), dose: 0, science: 0,
       mod: { solar: site === 'moon' ? 2 : 4, battery: 1, reactor: 0, shield: 0, greenhouse: 0, drill: 0 },
-      gh: [], pending: [], dustDays: 0, events: events,
+      gh: [], pending: [], dustDays: 0, events: events, faults: [], faultLog: [], emergencyUsed: false,
       history: [], builds: [], first: {}, lost: { o2: 0, hab: 0, water: 0, food: 0, ration: 0 },
       counts: { full: 0, lean: 0, half: 0, science: 0, maintenance: 0, shelter: 0, stormUnsheltered: 0, stormSheltered: 0, cleaned: 0 },
       incidents: []
@@ -116,7 +118,7 @@
       activity: plan.activity || 'science',
       ration: plan.ration || 'full',
       build: (plan.build || []).slice(),
-      repair: !!plan.repair
+      repair: !!plan.repair, emergency: !!plan.emergency
     };
     if (plan.oxygen === undefined) { p.oxygen = true; }
     if (plan.lab === undefined) { p.lab = true; }
@@ -131,7 +133,23 @@
   function note(st, key, day) { if (st.first[key] === undefined) { st.first[key] = day; } }
 
   // Resolve one day. Mutates st. Returns the day record.
-  function runDay(st, planIn) {
+  function installed(st) {
+    var c = ['oxygen', 'lab'];
+    if (st.mod.drill) { c.push('drill'); }
+    if (st.mod.greenhouse) { c.push('greenhouse'); }
+    return c;
+  }
+  function fix(st, d) { var f = st.faults.shift(); f.fixed = d; return f.type; }
+  function addFault(st, roll, d, why) {
+    var c = installed(st), type = c[Math.min(c.length - 1, Math.floor(roll * c.length))];
+    var f = { type: type, day: d, mDays: 0, why: why, fixed: null };
+    st.faults.push(f); st.faultLog.push(f);
+    note(st, 'fault', d);
+    return type;
+  }
+
+  function runDay(st, planIn, opts) {
+    opts = opts || {};
     if (st.over) { return null; }
     var site = st.site, d = st.day;
     var plan = normalizePlan(st, planIn);
@@ -157,6 +175,24 @@
       }
       return true;
     });
+    // 1b. emergency fuel-to-water, new faults, repairs (Tier 2)
+    if (plan.emergency && !st.emergencyUsed) {
+      st.emergencyUsed = true; st.emergencyDay = d;
+      st.water = Math.min(V('water_cap'), st.water + V('emerg_water'));
+      rec.emergency = true; note(st, 'emergency', d);
+      if (!opts.preview && st.events.emerg < V('emerg_risk')) { rec.emergencyDamage = addFault(st, st.events.emergPick, d, 'emergency'); }
+    }
+    if (!opts.preview && d === st.events.fault.day) { rec.faultNew = addFault(st, st.events.fault.roll, d, 'wear'); }
+    if (plan.repair && st.faults.length && st.crates >= V('repair_crates')) {
+      st.crates -= V('repair_crates'); rec.repaired = fix(st, d); st.repairs = (st.repairs || 0) + 1;
+    }
+    var broken = { oxygen: 0, lab: 0, drill: 0, greenhouse: 0 };
+    st.faults.forEach(function (f) { broken[f.type]++; });
+    rec.broken = broken;
+    if (broken.oxygen) { plan.oxygen = false; }
+    if (broken.lab) { plan.lab = false; }
+    plan.greenhouse = Math.min(plan.greenhouse, Math.max(0, st.mod.greenhouse - broken.greenhouse));
+    plan.drill = Math.min(plan.drill, Math.max(0, st.mod.drill - broken.drill));
     plan.greenhouse = Math.min(plan.greenhouse, st.mod.greenhouse);
     plan.drill = Math.min(plan.drill, st.mod.drill);
 
@@ -287,6 +323,11 @@
       dust: dustFactor, night: env.night, dustStorm: env.dustStorm, solarStorm: env.solarStorm, harvest: rec.harvest, noWater: !!rec.noWater
     });
 
+    if (plan.activity === 'maintenance' && st.faults.length && !rec.repaired) {
+      st.faults[0].mDays++;
+      if (st.faults[0].mDays >= V('repair_days')) { rec.repaired = fix(st, d); rec.repairedByCrew = true; st.repairs = (st.repairs || 0) + 1; }
+    }
+
     // 8. end conditions
     if (st.dose > V('dose_limit')) { st.over = true; st.ending = { type: 'evac', reason: 'dose', day: d }; }
     else if (st.health <= 0) { st.over = true; st.ending = { type: 'evac', reason: 'health', day: d }; }
@@ -324,7 +365,7 @@
     var plan = normalizePlan(c, planIn);
     var before = { o2: c.o2, water: c.water, food: c.food, battery: c.battery, health: c.health };
     // Do not let the preview spend crates: builds only matter tomorrow.
-    var rec = runDay(c, plan);
+    var rec = runDay(c, plan, { preview: true });
     var foodAvgGrow = rec.litGh * V('gh_yield') / V('gh_cycle');
     var net = {
       o2: c.o2 - before.o2,

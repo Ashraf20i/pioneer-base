@@ -66,6 +66,8 @@ function expert(opts) {
     if (stormToday(st)) { act = 'shelter'; }
     else if (site === 'mars' && !opts.neverClean && st.dustDays >= (opts.cleanEvery || 5)) { act = 'maintenance'; }
     var plan = { activity: act, build: [] };
+    if (st.faults.length) { if (st.crates >= 1) { plan.repair = true; } else if (!stormToday(st) && !opts.neverClean) { plan.activity = 'maintenance'; } }
+    if (!st.emergencyUsed && st.water < 12 && d > 1) { plan.emergency = true; }
     if (d === (opts.buildDay || 1)) { plan.build = (opts.builds || BUILDS[site]).slice(); }
     plan.ration = opts.ration || rationChoice(st, plan.build);
     return chooseSystems(st, plan, { reserve: site === 'mars' ? 5 : 0 });
@@ -109,6 +111,8 @@ function decent(seed, site) {
     if (stormToday(st) && r() > pShelterMiss) { act = 'shelter'; }
     else if (st.site === 'mars' && st.dustDays >= 6 && r() > pCleanMiss) { act = 'maintenance'; }
     var plan = { activity: act, build: [] };
+    if (st.faults.length && r() > 0.3) { if (st.crates >= 1) { plan.repair = true; } else if (!stormToday(st)) { plan.activity = 'maintenance'; } }
+    if (!st.emergencyUsed && st.water < 10 && d > 1 && r() > 0.5) { plan.emergency = true; }
     if (d === 1) { plan.build = pick.b.slice(); }
     plan.ration = fullAlways ? 'full' : rationChoice(st, plan.build);
     if (r() < pAllOn) {

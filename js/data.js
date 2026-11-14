@@ -22,7 +22,7 @@
     iss98: 'https://www.nasa.gov/missions/station/iss-research/nasa-achieves-water-recovery-milestone-on-international-space-station/',
     donki: 'https://ccmc.gsfc.nasa.gov/tools/DONKI/',
     std3001: 'https://www.nasa.gov/reference/nasa-std-3001/',
-    insight: 'https://science.nasa.gov/mission/insight/',
+    insight: 'https://www.nasa.gov/missions/insight/nasa-retires-insight-mars-lander-mission-after-years-of-science/',
     moxie: 'https://www.nasa.gov/missions/mars-2020-perseverance/perseverance-rover/nasas-oxygen-generating-experiment-moxie-completes-mars-mission/'
   };
 
@@ -103,6 +103,11 @@
     ['pen_hab', 'Crew', 'Habitat core off: health', -15, 'per day', 'Simplified', 'Health lost on a day the habitat has no power.', 'Game value', ''],
     ['pen_water', 'Crew', 'No water: health', -15, 'per day', 'Simplified', 'Health lost on a day the water runs out.', 'Game value', ''],
     ['pen_food', 'Crew', 'No food: health', -10, 'per day', 'Simplified', 'Health lost on a day the food runs out.', 'Game value', ''],
+    // ---------------- SIMPLIFIED: Tier 2 ----------------
+    ['repair_crates', 'Faults and emergency', 'Repair cost', 1, 'crate', 'Simplified', 'A broken module can be fixed with one crate, on the day you choose Repair.', 'Game value', ''],
+    ['repair_days', 'Faults and emergency', 'Repair without crates', 3, 'Maintenance days', 'Simplified', 'With no crates, the crew needs three Maintenance days to fix a broken module.', 'Game value', ''],
+    ['emerg_water', 'Faults and emergency', 'Rocket fuel to water', 40, 'L', 'Simplified', 'One-time emergency: turn rocket fuel into water.', 'Game value', ''],
+    ['emerg_risk', 'Faults and emergency', 'Emergency accident chance', 0.2, 'fraction', 'Simplified', 'A 20% chance that the emergency breaks one module.', 'Game value', ''],
     // ---------------- SIMPLIFIED: stars ----------------
     ['star2_science', 'Stars', 'Two stars: science', 30, 'points', 'Simplified', 'Science needed for the second star.', 'Game value', ''],
     ['star3_science', 'Stars', 'Three stars: science', 45, 'points', 'Simplified', 'Science needed for the third star.', 'Game value', ''],
@@ -152,10 +157,10 @@
   var cards = [
     { id: 'c1', afterDay: 5, text: 'A Martian dust storm has winds strong enough to flip over a rocket.', myth: true,
       why: 'Myth! Mars air is under 1% as thick as Earth\'s, so even fast wind pushes very gently. The real danger is the fine dust: it blocks sunlight and covers solar panels.',
-      source: 'NASA Mars Facts', url: NASA.marsfacts },
+      source: 'NASA Mars Fact Sheet (surface pressure about 6 mb, Earth about 1013 mb)', url: NASA.marsfs },
     { id: 'c2', afterDay: 9, text: 'Dust on solar panels can end a Mars mission.', myth: false,
       why: 'Reality! NASA\'s InSight lander ended its mission in 2022 when dust left its solar panels without enough power.',
-      source: 'NASA InSight mission', url: NASA.insight },
+      source: 'NASA, InSight mission retired', url: NASA.insight },
     { id: 'c3', afterDay: 14, text: 'The space station recycles almost all of its water.', myth: false,
       why: 'Reality! NASA reported in 2023 that the station can recover about 98% of its water, even from urine and sweat.',
       source: 'NASA, water recovery milestone', url: NASA.iss98 },

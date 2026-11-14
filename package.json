@@ -1,0 +1,13 @@
+{
+  "name": "pioneer-base",
+  "version": "1.0.0",
+  "description": "Pioneer Base: a turn-based Moon and Mars outpost game for ages 9-14. NASA Space Apps Challenge 2026 student project.",
+  "private": true,
+  "scripts": {
+    "test": "node tests/run-all.js",
+    "test:engine": "node tests/engine.test.js",
+    "test:balance": "node tests/balance.test.js",
+    "sources": "node tests/make-sources.js"
+  },
+  "license": "MIT"
+}

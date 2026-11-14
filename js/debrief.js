@@ -11,6 +11,7 @@
   var NAMES = { solar: 'solar array', battery: 'battery', reactor: 'fission reactor', greenhouse: 'greenhouse', drill: 'ice drill', shield: 'shield layer' };
   var CATS = { solar: 'power', battery: 'power', reactor: 'power', greenhouse: 'food', drill: 'water', shield: 'radiation shield' };
 
+  function n0(x) { return String(Math.round(x)); }
   function r1(x) { return Math.round(x * 10) / 10; }
   function plural(n, w) {
     if (n === 1) { return n + ' ' + w; }
@@ -29,6 +30,9 @@
     var s = spent(st), parts = [];
     Object.keys(s.n).forEach(function (t) { parts.push(plural(s.n[t], NAMES[t])); });
     return parts.length ? parts.join(', ') : 'nothing';
+  }
+  function spendPhrase(st) {
+    return st.builds.length ? 'You put your crates into ' + buildText(st) : 'You built nothing';
   }
   function firstBuildDay(st, type) {
     for (var i = 0; i < st.builds.length; i++) { if (st.builds[i].type === type) { return st.builds[i].day; } }
@@ -52,10 +56,11 @@
     } else if (site === 'mars' && dust !== undefined && dd >= dust) {
       steps.push({ day: dust, text: 'A dust storm began. The arrays made only ' + Math.round(V('dust_storm_mult') * 100) + '% of their power' + (st.counts.cleaned === 0 ? ', and you had never cleaned the dust off them.' : '.') });
     } else if (site === 'mars') {
-      var f = dustAt(st, dd);
-      steps.push({ day: dd, text: 'Dust built up on the arrays' + (f !== null ? ' (they made ' + Math.round(f * 100) + '% of their power)' : '') + ', and the base needed more power than they made.' });
+      var f = dustAt(st, dd), hd = st.history.filter(function (h) { return h.day === dd; })[0];
+      steps.push({ day: dd, text: 'The base needed ' + (hd ? n0(hd.demand) + ' ⚡' : 'more power') + ' but the arrays made ' + (hd ? n0(hd.supply) + ' ⚡' : 'less') + (f !== null && f < 0.95 ? ' (dust had cut them to ' + Math.round(f * 100) + '%)' : '') + '. The battery began to drain.' });
     } else {
-      steps.push({ day: dd, text: 'The base needed more power than it made (' + st.mod.solar + ' solar arrays).' });
+      var hm = st.history.filter(function (h) { return h.day === dd; })[0];
+      steps.push({ day: dd, text: 'The base needed ' + (hm ? n0(hm.demand) + ' ⚡' : 'more power') + ' but ' + plural(st.mod.solar, 'solar array') + ' made ' + (hm ? n0(hm.supply) + ' ⚡' : 'less') + '. The battery began to drain.' });
     }
     if (dayOf(st, 'batteryEmpty') !== undefined) { steps.push({ day: dayOf(st, 'batteryEmpty'), text: 'The battery ran empty.' }); }
     return steps;
@@ -75,6 +80,18 @@
     if (food > bv) { best = 'food'; bv = food; }
     if (bv <= 0) { best = 'o2'; }
     return best;
+  }
+
+  var FAULT_NAME = { oxygen: 'oxygen plant', lab: 'science lab', drill: 'ice drill', greenhouse: 'greenhouse' };
+  var FAULT_FOR = { o2: 'oxygen', water: 'drill', food: 'greenhouse' };
+  function faultStep(st, key) {
+    var want = FAULT_FOR[key], log = st.faultLog || [];
+    for (var i = 0; i < log.length; i++) {
+      if (log[i].type === want) {
+        return { day: log[i].day, text: 'The ' + FAULT_NAME[want] + ' broke' + (log[i].why === 'emergency' ? ' in the fuel-to-water emergency' : '') + (log[i].fixed ? ' and was fixed on day ' + log[i].fixed + '.' : ' and was never repaired.') };
+      }
+    }
+    return null;
   }
 
   function chainFor(st, key) {
@@ -120,6 +137,8 @@
         steps.push({ day: st.history.filter(function (h) { return h.solarStorm; })[0].day, text: 'You sheltered in the storm, but the daily dose kept adding up.' });
       }
     }
+    var fs = faultStep(st, key);
+    if (fs && steps.length < 5) { steps.push(fs); }
     steps.push({ day: end.day, text: endLabel });
     // Make sure there are always at least three steps.
     if (steps.length < 3) {
@@ -148,28 +167,35 @@
     return steps;
   }
 
+  function plantOff(st, key) {
+    return key === 'o2' && st.first.shut_oxygen === undefined && st.first.plantNoWater === undefined;
+  }
+
   function tradeoffFor(st, key) {
     var site = st.site;
+    if (plantOff(st, key)) { return 'Switch the oxygen plant on every day. It makes ' + V('o2p_out') + ' kg, and the crew breathes ' + r1(4 * V('o2_person')) + ' kg a day.'; }
     if (key === 'success') {
       var parts = [];
       if (hasModule(st, 'reactor')) { parts.push('The reactor used ' + V('reactor_cost') + ' crates, so you could afford ' + (st.mod.greenhouse ? plural(st.mod.greenhouse, 'greenhouse') : 'no greenhouse') + ' and ' + (st.mod.drill ? plural(st.mod.drill, 'ice drill') : 'no ice drill')); }
       else { parts.push('Without a reactor, you put your crates into ' + buildText(st)); }
       if (st.counts.lean + st.counts.half === 0) { parts.push('you could feed the crew Full rations every day'); }
       else { parts.push('you ran Lean rations for ' + plural(st.counts.lean, 'day') + (st.counts.half ? ' and Half rations for ' + plural(st.counts.half, 'day') : '')); }
+      (st.faultLog || []).forEach(function (f) { parts.push('a ' + FAULT_NAME[f.type] + ' broke on day ' + f.day + (f.fixed ? ' and you fixed it on day ' + f.fixed : ' and stayed broken')); });
       parts.push('and had ' + plural(st.counts.science, 'Science day') + ', ' + plural(st.counts.maintenance, 'Maintenance day') + ' and ' + plural(st.counts.shelter, 'Shelter day'));
       return parts.join(', ') + '.';
     }
     var cost;
+    if (plantOff(st, key)) { return 'You left the oxygen plant switched off on most days. Nothing else in the base makes oxygen, so the tank only emptied.'; }
     if ((key === 'o2' || key === 'hab') && site === 'moon' && !hasModule(st, 'reactor')) {
-      cost = 'You put your crates into ' + buildText(st) + ' instead of a power source that works at night. A reactor costs ' + V('reactor_cost') + ' crates.';
+      cost = spendPhrase(st) + ' instead of a power source that works at night. A reactor costs ' + V('reactor_cost') + ' crates.';
     } else if ((key === 'o2' || key === 'hab') && site === 'mars' && !hasModule(st, 'reactor')) {
-      cost = 'You put your crates into ' + buildText(st) + ' and none into a reactor. Solar power falls in a dust storm. A reactor does not.';
+      cost = spendPhrase(st) + ', and no reactor. Solar power falls in a dust storm. A reactor does not.';
     } else if (key === 'o2' || key === 'hab') {
       cost = 'You built ' + buildText(st) + ', but the base still ran short of power. Every system you switch on spends power you may need later.';
     } else if (key === 'dose') {
-      cost = st.mod.shield === 0 ? 'You built ' + buildText(st) + ' but no shield layers. Shielding costs ' + V('shield_cost') + ' crates a layer and cuts the dose by a quarter each time.' : 'You had ' + plural(st.mod.shield, 'shield layer') + ', but ' + (st.counts.stormUnsheltered ? 'you did not shelter in the storm' : 'the daily dose still added up') + '. Shielding and sheltering work together.';
+      cost = st.mod.shield === 0 ? (st.builds.length ? 'You built ' + buildText(st) + ' but no shield layers.' : 'You built no shield layers.') + ' Shielding costs ' + V('shield_cost') + ' crates a layer and cuts the dose by a quarter each time.' : 'You had ' + plural(st.mod.shield, 'shield layer') + ', but ' + (st.counts.stormUnsheltered ? 'you did not shelter in the storm' : 'the daily dose still added up') + '. Shielding and sheltering work together.';
     } else if (key === 'water') {
-      cost = hasModule(st, 'drill') ? 'You had an ice drill, but it could not make water faster than the crew used it.' : 'You spent your crates on ' + buildText(st) + ' and none on an ice drill. Water is used every day.';
+      cost = hasModule(st, 'drill') ? 'You had an ice drill, but it could not make water faster than the crew used it.' : spendPhrase(st) + ', and no ice drill. Water is used every day.';
     } else {
       cost = hasModule(st, 'greenhouse') ? 'Your greenhouse could not grow food fast enough. You need food or smaller rations, and smaller rations cost health.' : 'You built no greenhouse. Without one the only choice is to cut rations, and that costs health.';
     }
