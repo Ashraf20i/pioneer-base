@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pioneer Base - run a Moon or Mars outpost</title>
+<meta name="description" content="Pioneer Base is a turn-based game where you keep four astronauts safe for 30 days on the Moon or Mars. An independent student project for the NASA Space Apps Challenge 2026.">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to the game</a>
+
+<header class="top" id="top">
+  <div class="brand"><span class="brand-mark" aria-hidden="true">◐</span> <span class="brand-name">Pioneer Base</span></div>
+  <div class="hud" id="hud" hidden>
+    <span class="chip" id="hud-site"></span>
+    <span class="chip chip-day" id="hud-day"></span>
+  </div>
+  <nav class="top-nav" aria-label="Game menu">
+    <button class="btn btn-small" id="btn-data" type="button">Where do these numbers come from?</button>
+    <button class="btn btn-small" id="btn-teacher" type="button">Teacher guide</button>
+    <button class="btn btn-small" id="btn-restart" type="button" hidden>New mission</button>
+  </nav>
+</header>
+
+<div class="strip-wrap" id="strip-wrap" hidden>
+  <ol class="strip" id="strip" aria-label="Mission calendar, 30 days"></ol>
+  <p class="strip-legend" aria-hidden="true"><span>☀ Daylight</span> <span>☾ Night</span> <span>☢ Solar storm</span> <span>≋ Dust storm</span></p>
+</div>
+
+<main id="main" tabindex="-1">
+
+  <!-- Briefing -->
+  <section id="screen-brief" class="screen" aria-labelledby="brief-title">
+    <div class="hero">
+      <h1 id="brief-title">Run a base on the Moon or Mars</h1>
+      <p class="lead">Four astronauts. Thirty days. You make the plan each day. Keep everyone safe and healthy until the mission ends.</p>
+      <ol class="how">
+        <li><strong>Plan the day.</strong> Switch systems on or off, pick what the crew does, and choose their food rations.</li>
+        <li><strong>Watch the numbers.</strong> Power, oxygen, water, food and radiation all pull against each other.</li>
+        <li><strong>Press Run day.</strong> At the end, the game shows the exact chain of choices that made your mission work or fail.</li>
+      </ol>
+    </div>
+    <h2 class="pick-title">Pick your outpost</h2>
+    <div class="site-cards">
+      <article class="site-card" id="card-moon">
+        <h3><span aria-hidden="true">☾</span> Moon outpost</h3>
+        <p>The Moon has no air. Radiation is strong all the time. Then comes a night that lasts <strong>15 days</strong>, and your solar arrays make no power at all.</p>
+        <ul class="facts">
+          <li>Night: 15 days <span class="tag tag-real" data-tag-id="lunar_night"><span class="tag-icon" aria-hidden="true">●</span> Real</span></li>
+          <li>Radiation: 1.37 mSv a day <span class="tag tag-real" data-tag-id="dose_moon"><span class="tag-icon" aria-hidden="true">●</span> Real</span></li>
+        </ul>
+        <button class="btn btn-primary" type="button" data-start="moon">Start Moon mission</button>
+      </article>
+      <article class="site-card" id="card-mars">
+        <h3><span aria-hidden="true">♂</span> Mars outpost</h3>
+        <p>Mars has weak sunlight, and dust settles on your solar arrays. A big <strong>dust storm</strong> is coming, and a solar storm too. Radiation is lower than on the Moon.</p>
+        <ul class="facts">
+          <li>Sunlight: 43% of the Moon's <span class="tag tag-derived" data-tag-id="mars_sun_ratio"><span class="tag-icon" aria-hidden="true">◆</span> Derived</span></li>
+          <li>Radiation: 0.67 mSv a day <span class="tag tag-real" data-tag-id="dose_mars"><span class="tag-icon" aria-hidden="true">●</span> Real</span></li>
+        </ul>
+        <button class="btn btn-primary" type="button" data-start="mars">Start Mars mission</button>
+      </article>
+    </div>
+    <p class="legend-note">Every number in the game has a tag:
+      <span class="tag tag-real"><span class="tag-icon" aria-hidden="true">●</span> Real</span> measured by scientists,
+      <span class="tag tag-derived"><span class="tag-icon" aria-hidden="true">◆</span> Derived</span> worked out from real numbers,
+      <span class="tag tag-simplified"><span class="tag-icon" aria-hidden="true">▲</span> Simplified</span> made simple for the game.
+      Tap any tag to see where the number comes from.</p>
+  </section>
+
+  <!-- Game -->
+  <section id="screen-game" class="screen" hidden aria-label="Mission">
+    <div id="hint" class="hint" role="note" hidden></div>
+    <div id="alerts" class="alerts" aria-live="polite"></div>
+    <div class="game-grid">
+      <div class="col-left">
+        <section class="panel outpost-panel" aria-labelledby="outpost-h">
+          <h2 id="outpost-h" class="panel-title">Your outpost</h2>
+          <div id="outpost" class="outpost"></div>
+          <ul id="status-chips" class="status-chips" aria-label="What is running"></ul>
+        </section>
+        <section class="panel" aria-labelledby="gauges-h" id="sec-gauges">
+          <h2 id="gauges-h" class="panel-title">Mission gauges</h2>
+          <div id="gauges" class="gauges"></div>
+        </section>
+        <section class="panel" id="sec-report" aria-labelledby="report-h" tabindex="-1">
+          <h2 id="report-h" class="panel-title">Mission report</h2>
+          <div id="report" class="report"><p class="muted">Your first report will show up here after day 1.</p></div>
+        </section>
+      </div>
+      <div class="col-right">
+        <section class="panel" id="sec-preview" aria-labelledby="preview-h">
+          <h2 id="preview-h" class="panel-title">Today's preview <span class="muted small">(updates as you plan)</span></h2>
+          <div id="preview"></div>
+        </section>
+        <section class="panel" id="sec-systems" aria-labelledby="systems-h">
+          <h2 id="systems-h" class="panel-title">1. Systems</h2>
+          <div id="systems"></div>
+        </section>
+        <section class="panel" id="sec-activity" aria-labelledby="act-h">
+          <h2 id="act-h" class="panel-title">2. Crew activity <span class="muted small">(one for the whole crew)</span></h2>
+          <div id="activity"></div>
+        </section>
+        <section class="panel" id="sec-ration" aria-labelledby="ration-h">
+          <h2 id="ration-h" class="panel-title">3. Rations</h2>
+          <div id="ration"></div>
+        </section>
+        <section class="panel" id="sec-build" aria-labelledby="build-h">
+          <h2 id="build-h" class="panel-title">4. Build <span class="muted small">(works from tomorrow)</span></h2>
+          <div id="build"></div>
+        </section>
+      </div>
+    </div>
+    <div class="run-bar">
+      <button class="btn btn-run" id="btn-run" type="button">Run day 1</button>
+    </div>
+  </section>
+
+  <!-- Debrief -->
+  <section id="screen-debrief" class="screen" hidden aria-labelledby="deb-title" tabindex="-1">
+    <div class="deb-head" id="deb-head"></div>
+    <section class="panel" aria-labelledby="chain-h">
+      <h2 class="panel-title" id="chain-h">What happened: the cause chain</h2>
+      <ol class="chain" id="chain"></ol>
+    </section>
+    <section class="panel" aria-labelledby="chart-h">
+      <h2 class="panel-title" id="chart-h">Your 30 days</h2>
+      <div id="chart" class="chart"></div>
+      <details class="chart-table"><summary>Show the chart as a table</summary><div id="chart-table"></div></details>
+    </section>
+    <div class="two-col">
+      <section class="panel" aria-labelledby="trade-h"><h2 class="panel-title" id="trade-h">The trade-off behind it</h2><p id="tradeoff"></p></section>
+      <section class="panel" aria-labelledby="tip-h"><h2 class="panel-title" id="tip-h">Try this next time</h2><p id="tip"></p></section>
+    </div>
+    <div class="deb-actions">
+      <button class="btn btn-primary" id="btn-again" type="button">Try again</button>
+      <button class="btn" id="btn-other" type="button"></button>
+      <button class="btn" id="btn-deb-data" type="button">Where do these numbers come from?</button>
+    </div>
+  </section>
+
+  <!-- Teacher guide -->
+  <section id="screen-teacher" class="screen teacher" hidden aria-labelledby="teacher-title">
+    <div class="no-print teacher-actions">
+      <button class="btn" id="btn-teacher-back" type="button">Back to the game</button>
+      <button class="btn btn-primary" id="btn-print" type="button">Print this guide</button>
+    </div>
+    <h1 id="teacher-title">Teacher guide: Pioneer Base</h1>
+    <p class="lead">A 45-minute lesson for ages 9 to 14. Students run a Moon or Mars outpost for 30 mission days and learn why real missions need trade-offs. No account, no install, and it works offline. One game takes 8 to 12 minutes.</p>
+
+    <h2>Learning goals</h2>
+    <ul>
+      <li>Explain that a space base needs power, oxygen, water, food and protection from radiation <em>at the same time</em>.</li>
+      <li>Describe one trade-off, such as spending crates on a reactor instead of a greenhouse.</li>
+      <li>Tell the difference between a <strong>Real</strong> number, a <strong>Derived</strong> number and a <strong>Simplified</strong> number, and say why a model simplifies.</li>
+      <li>Read a cause chain and name the first decision or event that started a failure.</li>
+    </ul>
+
+    <h2>45-minute lesson outline</h2>
+    <table class="outline">
+      <thead><tr><th>Time</th><th>What happens</th></tr></thead>
+      <tbody>
+        <tr><td>0-5 min</td><td><strong>Hook.</strong> Ask: "If you lived on the Moon, what would you need every day?" List answers on the board. Point out air, water, food, power and protection.</td></tr>
+        <tr><td>5-10 min</td><td><strong>Demo.</strong> Show the briefing screen. Play day 1 together on a projector. Read the Mission Control hint aloud. Show the "Today's preview" box.</td></tr>
+        <tr><td>10-25 min</td><td><strong>Play 1.</strong> Pairs play one full mission on the site they choose. Pairs write down one decision they are proud of and one they regret.</td></tr>
+        <tr><td>25-35 min</td><td><strong>Debrief.</strong> Each pair reads their cause chain to another pair. Ask: which step could you have changed? Which crate would you spend differently?</td></tr>
+        <tr><td>35-42 min</td><td><strong>Play 2.</strong> Pairs try again, or switch to the other site, with one new plan.</td></tr>
+        <tr><td>42-45 min</td><td><strong>Wrap-up.</strong> Open "Where do these numbers come from?". Ask which numbers are Real and which are Simplified. Discuss question 5 below.</td></tr>
+      </tbody>
+    </table>
+
+    <h2>Five discussion questions</h2>
+    <ol>
+      <li>Why is a reactor useful on the Moon but a bigger battery is not enough? (The lunar night lasts about 15 Earth days.)</li>
+      <li>Shelter protects the crew in a solar storm, but the crew does no science that day. When is that worth it?</li>
+      <li>The greenhouse costs power and water, and crops take 10 days in the game. Why do real crops take even longer?</li>
+      <li>Why does the game show "runs out in N days"? How do real mission controllers use the same idea?</li>
+      <li>The game simplifies many numbers. Which simplification is fair, and which one might give a wrong idea?</li>
+    </ol>
+
+    <h2>Answers and notes for the teacher</h2>
+    <ul>
+      <li>The Moon has no air, so radiation is a steady danger. Without shield layers a full 30-day Moon mission goes over the game's 40 mSv limit. NASA's real career limit is 600 mSv, and the game shows both.</li>
+      <li>On Mars, dust slowly covers the solar arrays. A Maintenance day cleans them. The dust storm cuts solar power for 6 days, so a reactor or a charged battery helps.</li>
+      <li>The ISS recycles about 98% of its water. The game outpost recycles 90%, and that number is tagged Simplified.</li>
+      <li>The "Myth or Reality?" cards between days each name their source. Ask students to say Myth or Reality before they tap.</li>
+      <li>Failure in the game is always an evacuation, never worse. Failing is part of the lesson. Encourage a second try.</li>
+    </ul>
+
+    <h2>Tips</h2>
+    <ul>
+      <li>Works on laptops, tablets and phones. Use keyboard Tab and Space or Enter if a mouse is not available.</li>
+      <li>To keep the lesson short, tell students the hints in days 1 to 3 are on purpose, and that they can close them.</li>
+      <li>This is an independent student project for the NASA Space Apps Challenge 2026. Not affiliated with or endorsed by NASA.</li>
+    </ul>
+  </section>
+</main>
+
+<!-- Myth or Reality dialog -->
+<dialog id="dlg-myth" class="dlg" aria-labelledby="myth-title">
+  <form method="dialog" class="dlg-body" id="myth-body"></form>
+</dialog>
+
+<!-- Data panel -->
+<dialog id="dlg-data" class="dlg dlg-wide" aria-labelledby="data-title">
+  <div class="dlg-body">
+    <div class="dlg-head">
+      <h2 id="data-title">Where do these numbers come from?</h2>
+      <button class="btn btn-small" id="btn-data-close" type="button">Close</button>
+    </div>
+    <p>Every number the game uses is listed here. This list comes from the same file the game reads, so they always match.</p>
+    <div class="filters" role="group" aria-label="Filter by tag">
+      <button class="btn btn-small is-on" type="button" data-filter="All" aria-pressed="true">All</button>
+      <button class="btn btn-small" type="button" data-filter="Real" aria-pressed="false">● Real</button>
+      <button class="btn btn-small" type="button" data-filter="Derived" aria-pressed="false">◆ Derived</button>
+      <button class="btn btn-small" type="button" data-filter="Simplified" aria-pressed="false">▲ Simplified</button>
+    </div>
+    <div id="data-body"></div>
+    <p class="small muted" id="data-note"></p>
+  </div>
+</dialog>
+
+<footer class="foot">
+  <p>An independent student project for the NASA Space Apps Challenge 2026. Not affiliated with or endorsed by NASA.</p>
+</footer>
+
+<script src="js/data.js"></script>
+<script src="js/sim.js"></script>
+<script src="js/debrief.js"></script>
+<script src="js/ui.js"></script>
+</body>
+</html>

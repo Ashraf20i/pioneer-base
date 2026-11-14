@@ -282,7 +282,7 @@
 
     // history
     st.history.push({
-      day: d, supply: supply, used: used, demand: rec.demand, battery: st.battery, o2: st.o2, water: st.water, food: st.food,
+      day: d, supply: supply, used: used, demand: rec.demand, battery: st.battery, cap: cap, o2: st.o2, water: st.water, food: st.food,
       health: st.health, dose: st.dose, science: st.science, events: rec.events.slice(), shut: rec.shut.slice(), activity: plan.activity, ration: plan.ration,
       dust: dustFactor, night: env.night, dustStorm: env.dustStorm, solarStorm: env.solarStorm, harvest: rec.harvest, noWater: !!rec.noWater
     });
