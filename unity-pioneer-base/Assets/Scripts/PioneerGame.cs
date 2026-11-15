@@ -51,6 +51,7 @@ public partial class PioneerGame : MonoBehaviour
 
     void Update()
     {
+        if (Input.GetKeyDown(KeyCode.Escape) || Input.GetKeyDown(KeyCode.P)) { if (paused) ResumeGame(); else if (mode == Mode.Play) ShowPauseMenu(); }
         float dt = Mathf.Min(Time.deltaTime, 0.05f);
         if (mode == Mode.Play && !journey) HandleInput(dt);
         if (journey) TickJourney(dt);
@@ -287,6 +288,26 @@ public partial class PioneerGame : MonoBehaviour
         yield return new WaitForSeconds(shots ? 0.3f : 1.2f);
     }
 
+    // ------------------------------------------------------------------ pause menu
+    bool paused;
+    void ShowPauseMenu()
+    {
+        if (mode != Mode.Play && !paused) return;
+        paused = true; Time.timeScale = 0f; Sfx("click");
+        string where = journey ? "Hard mode, sol " + js.sol + ", " + Fmt(Journey.KmLeft(js)) + " km from the outpost."
+            : (site == "moon" ? "Moon" : "Mars") + (hardMode ? " (hard mode)" : "") + ", " + dayWord + " " + st.day + " of " + Sim.MAX_DAY + ".";
+        mode = Mode.Modal;
+        ShowModal("Mission paused", where + "\n\nRestarting begins the same mission again from " + dayWord + " 1. Your progress in this mission will be lost.",
+            new List<Btn> {
+                new Btn { label = "RESUME", act = () => ResumeGame(), primary = true },
+                new Btn { label = "RESTART MISSION", act = () => { Unpause(); if (journey || hardMode) StartHard(); else StartGame(site); } },
+                new Btn { label = "MAIN MENU", act = () => { Unpause(); journey = false; hardMode = false; SetJourneyHud(false); ShowTitle(); } },
+                new Btn { label = "DATA SOURCES", close = false, act = () => ShowSources() } }, 17,
+            "PAUSE  ·  ESC TO RESUME", false, null, UiAccent);
+    }
+    void Unpause() { paused = false; Time.timeScale = 1f; }
+    void ResumeGame() { Unpause(); modalRoot.SetActive(false); mode = Mode.Play; }
+
     // Every number in the game, with its tag and its NASA source
     static readonly Dictionary<string, string> SrcName = new Dictionary<string, string> {
         { "sun_earth", "NASA TSIS-1" }, { "mars_au", "NASA Mars Fact Sheet" }, { "lunar_night", "NASA Moon Facts" },
@@ -307,7 +328,7 @@ public partial class PioneerGame : MonoBehaviour
         }
         sb.AppendLine("SIMPLIFIED  ·  " + GameData.Rows.Count(x => x.tag == "Simplified") + " game values, made simple on purpose (crates, module sizes, the Moon dose " + Fmt(V("dose_moon")) + " mSv/day). Real values are never changed to make the game easier.");
         sb.AppendLine("Solar storm days come from two real storms in NASA DONKI: 11 May 2024 and 3 October 2024. Full list with links: SOURCES.md in the repository.");
-        ShowModal("Where do these numbers come from?", sb.ToString(), new List<Btn> { new Btn { label = "BACK", act = () => ShowTitle(), primary = true } }, 13,
+        ShowModal("Where do these numbers come from?", sb.ToString(), new List<Btn> { new Btn { label = "BACK", act = () => { if (paused) ShowPauseMenu(); else ShowTitle(); }, primary = true } }, 13,
             "DATA SOURCES  ·  ALL NASA", false, null, UiAccent);
     }
 

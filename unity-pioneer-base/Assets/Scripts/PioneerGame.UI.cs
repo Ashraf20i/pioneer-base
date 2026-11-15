@@ -165,7 +165,9 @@ public partial class PioneerGame
         siteText = TextUI("Site", top, new Vector2(0.012f, 0.72f), new Vector2(0.3f, 0.96f), 12, TextAnchor.MiddleLeft, UiAccent, fontMono);
         solText = TextUI("Sol", top, new Vector2(0.012f, 0.36f), new Vector2(0.3f, 0.74f), 26, TextAnchor.MiddleLeft, UiText, fontBold);
         crateText = TextUI("Crates", top, new Vector2(0.012f, 0.07f), new Vector2(0.3f, 0.36f), 13, TextAnchor.MiddleLeft, UiAmber, fontMono);
-        alertText = TextUI("Alerts", top, new Vector2(0.5f, 0.7f), new Vector2(0.99f, 0.98f), 12, TextAnchor.UpperRight, UiAmber, font);
+        alertText = TextUI("Alerts", top, new Vector2(0.4f, 0.7f), new Vector2(0.905f, 0.98f), 12, TextAnchor.UpperRight, UiAmber, font);
+        var menuBtn = ButtonUI("Menu", top, "MENU  ·  ESC", () => ShowPauseMenu(), 12, 1); Place(menuBtn, 0.912f, 0.7f, 0.992f, 0.95f);
+        menuBtn.GetComponentInChildren<Text>().font = fontMono;
         string[] gk = { "o2", "water", "food", "battery", "health", "dose" };
         for (int i = 0; i < gk.Length; i++)
         {

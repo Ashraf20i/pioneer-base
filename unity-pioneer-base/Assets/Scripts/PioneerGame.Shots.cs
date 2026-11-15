@@ -72,6 +72,7 @@ public partial class PioneerGame
         DismissModal(); StartHard(); yield return Frames(12); Snap("hard_01_crash");
         int g = 0; while (mode != Mode.Play && mode != Mode.Modal && g++ < 2000) yield return null;
         yield return Frames(4); Snap("hard_02_question");
+        DismissModal(); ShowPauseMenu(); yield return Frames(3); Snap("hard_02b_pause"); ResumeGame(); yield return Frames(3);
         autoDrive = true; int frame = 0, lastSol = 1; bool sandShot = false, podShot = false, stormShot = false, campShot = false, arriveShot = false;
         while (journey && !js.failed && frame++ < 40000)
         {
