@@ -301,7 +301,7 @@ public partial class PioneerGame
         else
         {
             zen = C(0f, 0f, 0.004f); hor = C(0.012f, 0.012f, 0.02f);
-            amb = Color.Lerp(C(0.05f, 0.06f, 0.09f), C(0.13f, 0.13f, 0.14f), sunK);
+            amb = Color.Lerp(C(0.05f, 0.06f, 0.09f), C(0.24f, 0.24f, 0.26f), sunK);
             sunCol = Color.white; sunI = sunK * 1.4f;
             RenderSettings.fog = false;
             starMat.color = new Color(1, 1, 1, 0.5f + 0.5f * (1f - sunK));

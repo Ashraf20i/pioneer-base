@@ -192,7 +192,7 @@ public partial class PioneerGame
         // banners, one after the other
         if (bannerT <= 0 && bannerQueue.Count > 0)
         {
-            var b = bannerQueue.Dequeue(); bannerTitle.text = b.title; bannerSub.text = b.sub; bannerCol = b.col; bannerT = shots ? 1.4f : 2.5f; bannerDur = bannerT;
+            var b = bannerQueue.Dequeue(); bannerTitle.text = b.title; bannerSub.text = b.sub; bannerCol = b.col; bannerT = shots ? 1.4f : 2.1f; bannerDur = bannerT;
         }
         if (bannerT > 0)
         {

@@ -186,6 +186,8 @@ public partial class PioneerGame : MonoBehaviour
         if (rec == null) { rec = Sim.RunDay(st, plan); AfterRun(rec); }
         dayT = t0; moonDayF = st.over ? m0 + 1f : st.day; lapseActive = false;
         OnDayResult(rec); solPop = 0.7f;
+        // at most two banners a day (the first and the most serious), so a bad day does not drag on
+        if (bannerQueue.Count > 2) { var all = bannerQueue.ToArray(); bannerQueue.Clear(); bannerQueue.Enqueue(all[0]); bannerQueue.Enqueue(all[all.Length - 1]); }
         yield return new WaitForSeconds(shots ? 0.5f : 1.3f);
         while (bannerQueue.Count > 0 || bannerT > 0.5f) yield return null;
         if (st.over) { yield return Ending(); cineActive = false; Letterbox(false); ShowDebrief(); yield break; }
@@ -206,7 +208,7 @@ public partial class PioneerGame : MonoBehaviour
         plan.greenhouse = Math.Min(plan.greenhouse, st.mod["greenhouse"]);
         plan.drill = Math.Min(plan.drill, st.mod["drill"]);
         if (plan.activity == "shelter" && !Sim.EnvFor(st, st.day).solarStorm) plan.activity = "science";
-        if (!st.over) Refresh(); else { pv = null; RefreshWorld(); }
+        if (!st.over) Refresh();   // when the mission is over, the base keeps the state it ended in
     }
 
     static readonly string[] MarsFacts = {

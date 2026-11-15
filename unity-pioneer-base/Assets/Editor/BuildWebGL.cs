@@ -41,6 +41,9 @@ public static class BuildWebGL
         PlayerSettings.stripEngineCode = false;   // objects are created from code, keep every engine class
         PlayerSettings.WebGL.compressionFormat = WebGLCompressionFormat.Disabled;
         PlayerSettings.WebGL.template = "PROJECT:PioneerMin";
+        // unique file names per build, so a browser never mixes files from two builds
+        PlayerSettings.WebGL.nameFilesAsHashes = true;
+        if (System.IO.Directory.Exists("Builds/WebGL/Build")) System.IO.Directory.Delete("Builds/WebGL/Build", true);
         var opts = new BuildPlayerOptions {
             scenes = new[] { "Assets/Scenes/Base.unity" },
             locationPathName = "Builds/WebGL",
