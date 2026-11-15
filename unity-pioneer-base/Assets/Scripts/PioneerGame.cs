@@ -301,7 +301,7 @@ public partial class PioneerGame : MonoBehaviour
         if (d.ok) sb.AppendLine(new string('*', d.stars) + "   " + d.stars + " of 3 stars");
         sb.AppendLine(d.headline).AppendLine();
         sb.AppendLine("What happened:");
-        foreach (var s in d.chain) sb.AppendLine("  Day " + s.day + ": " + s.text);
+        foreach (var s in d.chain) sb.AppendLine("  " + (site == "mars" ? "Sol " : "Day ") + s.day + ": " + s.text);
         sb.AppendLine().AppendLine("The trade-off: " + d.tradeoff);
         sb.AppendLine().AppendLine("Next time: " + d.tip);
         mode = Mode.Modal;

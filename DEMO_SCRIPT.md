@@ -16,6 +16,16 @@
 | 0:22-0:28 | The debrief screen. Slowly scroll the cause chain, step by step. Highlight the 3 to 5 steps. | **Debrief: the exact chain of decisions that caused the failure.** | "At the end, the game shows exactly why." |
 | 0:28-0:30 | The tip box ("Build the fission reactor on day 1") and the "Try again" button. End card with the game link. | **Try again. Pioneer Base. Play free in your browser.** | "Try again." |
 
+## Optional: a 3D bonus version of the video
+
+If you want to show the 3D version, do **not** make the video longer than 30 seconds. Replace the last shot (0:28-0:30) with this one, or record a second, separate clip for the project page.
+
+| Time | Shot | Caption on screen |
+|---|---|---|
+| 0:28-0:30 | 3D version, Mars: the camera flies over the outpost, then the Hard mode rover drives toward the green beacon. | **Also in 3D. Same engine, real numbers.** |
+
+To record it: start the 3D build, choose Mars, let the opening flight play, then press END SOL once to show the day passing. For the rover, choose "HARD: Crash Landing" and drive with WASD or ZQSD.
+
 ## Caption text, ready to paste
 
 1. Pioneer Base: run a Moon base for 30 days.
