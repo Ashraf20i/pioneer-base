@@ -400,7 +400,7 @@ public partial class PioneerGame
     {
         var m = habMod = NewMod("hab", "hab", "HABITAT", HabPos, 6.3f, 6.2f); var r = m.root;
         m.ipos = Ground(new Vector3(0, 0, -8.4f));
-        var white = Lit(0.9f, 0.91f, 0.94f); var grey = Lit(0.5f, 0.54f, 0.62f); var orange = Lit(0.95f, 0.5f, 0.15f);
+        var white = PanelMat(); var grey = Lit(0.5f, 0.54f, 0.62f); var orange = Lit(0.95f, 0.5f, 0.15f);
         P(PrimitiveType.Cylinder, r, new Vector3(0, 1.6f, 0), new Vector3(9, 1.6f, 9), white);
         P(PrimitiveType.Sphere, r, new Vector3(0, 3.2f, 0), new Vector3(9, 5f, 9), white);
         P(PrimitiveType.Cylinder, r, new Vector3(0, 0.9f, 0), new Vector3(9.15f, 0.22f, 9.15f), orange);
@@ -457,7 +457,7 @@ public partial class PioneerGame
     void BuildLab()
     {
         var m = labMod = NewMod("lab", "lab", "SCIENCE LAB", LabPos, 3.4f, 4.4f); var r = m.root;
-        var white = Lit(0.9f, 0.9f, 0.95f); var grey = Lit(0.45f, 0.48f, 0.58f);
+        var white = PanelMat(); var grey = Lit(0.45f, 0.48f, 0.58f);
         P(PrimitiveType.Cylinder, r, new Vector3(0, 1.7f, 0), new Vector3(2.8f, 2.6f, 2.8f), white, new Vector3(0, 0, 90));
         P(PrimitiveType.Sphere, r, new Vector3(-2.6f, 1.7f, 0), Vector3.one * 2.8f, white); P(PrimitiveType.Sphere, r, new Vector3(2.6f, 1.7f, 0), Vector3.one * 2.8f, white);
         foreach (float x in new[] { -1.8f, 1.8f }) P(PrimitiveType.Cube, r, new Vector3(x, 0.25f, 0), new Vector3(0.5f, 0.5f, 2.6f), grey);
@@ -500,7 +500,7 @@ public partial class PioneerGame
     }
     void BuildShip(Transform r)
     {
-        var white = Lit(0.92f, 0.92f, 0.95f); var dark = Lit(0.18f, 0.19f, 0.24f); var grey = Lit(0.5f, 0.52f, 0.6f);
+        var white = PanelMat(); var dark = Lit(0.18f, 0.19f, 0.24f); var grey = Lit(0.5f, 0.52f, 0.6f);
         P(PrimitiveType.Cylinder, r, new Vector3(0, 3.7f, 0), new Vector3(3.2f, 2.2f, 3.2f), white);
         P(PrimitiveType.Sphere, r, new Vector3(0, 5.9f, 0), new Vector3(3.2f, 4.6f, 3.2f), white);
         P(PrimitiveType.Cylinder, r, new Vector3(0, 4.6f, 0), new Vector3(3.26f, 0.2f, 3.26f), Lit(0.95f, 0.5f, 0.15f));
@@ -517,14 +517,7 @@ public partial class PioneerGame
     }
     void BuildRover()
     {
-        var r = Empty("Rover", siteRoot, Ground(RoverPos)); r.localEulerAngles = new Vector3(0, -35, 0);
-        var white = Lit(0.88f, 0.88f, 0.92f); var dark = Lit(0.15f, 0.15f, 0.18f);
-        P(PrimitiveType.Cube, r, new Vector3(0, 1.0f, 0), new Vector3(1.8f, 0.7f, 3.2f), white);
-        P(PrimitiveType.Cube, r, new Vector3(0, 1.6f, 0.6f), new Vector3(1.5f, 0.7f, 1.4f), Glass(C(0.3f, 0.6f, 0.9f, 0.55f)));
-        foreach (float x in new[] { -1.05f, 1.05f }) foreach (float z in new[] { -1.15f, 0f, 1.15f })
-            P(PrimitiveType.Cylinder, r, new Vector3(x, 0.5f, z), new Vector3(1f, 0.16f, 1f), dark, new Vector3(0, 0, 90));
-        P(PrimitiveType.Cylinder, r, new Vector3(0.5f, 2.2f, -1.2f), new Vector3(0.05f, 0.9f, 0.05f), dark);
-        P(PrimitiveType.Cube, r, new Vector3(0, 1.45f, -1.0f), new Vector3(1.6f, 0.06f, 1.1f), Lit(0.1f, 0.15f, 0.4f));
+        BuildRoverDetailed(siteRoot, Ground(RoverPos), -35f, null, false);
     }
 
     // ------------------------------------------------------------------ slots (things the player can build)

@@ -30,7 +30,7 @@ public partial class PioneerGame : MonoBehaviour
     void Start()
     {
         Application.targetFrameRate = 60;
-        font = Resources.GetBuiltinResource<Font>("Arial.ttf");
+        LoadFonts();
         try { shots = Environment.GetCommandLineArgs().Any(a => a == "-pbshots"); } catch (Exception) { shots = false; }
         cam = Camera.main;
         if (cam == null) { var cg = new GameObject("Main Camera"); cg.tag = "MainCamera"; cam = cg.AddComponent<Camera>(); }
@@ -128,13 +128,16 @@ public partial class PioneerGame : MonoBehaviour
     void ShowTitle()
     {
         mode = Mode.Title;
-        ShowModal("PIONEER BASE",
+        ShowModal("Pioneer Base",
             "Four astronauts. Thirty days. One outpost.\n\nWalk around the base (WASD or ZQSD, or click the ground). Click a module to use it. " +
-            "Drag to look around, scroll to zoom.\nSpend your 14 crates at the Supply Depot, plan each day, then press END SOL.\n\nChoose a site:\n\n" + GameData.SourcesNote,
+            "Drag to look around, scroll to zoom. Spend your 14 crates at the Supply Depot, plan each day, then press END SOL.\n\n" +
+            "Hard mode starts with a crash 40 km from the outpost: drive the rover there and solve chemistry and physics challenges on the way.",
             new List<Btn> {
-                new Btn { label = "Mars (dust storms)", act = () => StartGame("mars") },
-                new Btn { label = "Moon (15-day night)", act = () => StartGame("moon") },
-                new Btn { label = "HARD: Crash Landing", act = () => StartHard() } }, 18);
+                new Btn { label = "MARS  ·  dust storms", act = () => StartGame("mars"), primary = true },
+                new Btn { label = "MOON  ·  15-day night", act = () => StartGame("moon"), primary = true },
+                new Btn { label = "HARD  ·  Crash Landing", act = () => StartHard() } }, 17,
+            "JUNIOR ASTRONAUT MISSION TRAINER  ·  SELECT A SITE", false, GameData.SourcesNote.ToUpper(), UiAccent);
+        modalFooter.color = UiMuted;
     }
 
     void StartGame(string s, GameState preset = null)
@@ -283,32 +286,33 @@ public partial class PioneerGame : MonoBehaviour
 
     void ShowCard(Card c)
     {
-        ShowModal("MYTH OR REALITY?", c.text, new List<Btn> {
-            new Btn { label = "MYTH", close = false, act = () => AnswerCard(c, true) },
-            new Btn { label = "REALITY", close = false, act = () => AnswerCard(c, false) } }, 26);
+        ShowModal("Myth or reality?", c.text, new List<Btn> {
+            new Btn { label = "Myth", close = false, act = () => AnswerCard(c, true) },
+            new Btn { label = "Reality", close = false, act = () => AnswerCard(c, false) } }, 24, "SCIENCE CHECK  ·  MYTH OR REALITY", true);
     }
     void AnswerCard(Card c, bool saidMyth)
     {
         bool right = saidMyth == c.myth;
         if (right) { Flash(C(0.3f, 1f, 0.5f, 0.3f), 0.6f); Sfx("good"); Fireworks(player.pos); } else { Flash(C(1f, 0.5f, 0.2f, 0.25f), 0.5f); Sfx("off"); }
-        ShowModal(right ? "Correct!" : "Not quite", c.text + "\n\n" + c.why + "\n\nSource: " + c.source, new List<Btn> { new Btn { label = "Continue" } }, 19);
+        ShowModal(c.myth ? "It is a myth." : "It is real.", c.why, new List<Btn> { new Btn { label = "CONTINUE" } }, 19,
+            right ? "CORRECT" : "NOT QUITE", false, "SOURCE  ·  " + c.source, right ? UiGood : UiAmber);
     }
 
     void ShowDebrief()
     {
         var d = Debrief.Analyze(st);
         var sb = new StringBuilder();
-        if (d.ok) sb.AppendLine(new string('*', d.stars) + "   " + d.stars + " of 3 stars");
         sb.AppendLine(d.headline).AppendLine();
-        sb.AppendLine("What happened:");
+        sb.AppendLine("WHAT HAPPENED");
         foreach (var s in d.chain) sb.AppendLine("  " + (site == "mars" ? "Sol " : "Day ") + s.day + ": " + s.text);
-        sb.AppendLine().AppendLine("The trade-off: " + d.tradeoff);
-        sb.AppendLine().AppendLine("Next time: " + d.tip);
+        sb.AppendLine().AppendLine("THE TRADE-OFF  " + d.tradeoff);
+        sb.AppendLine().AppendLine("NEXT TIME  " + d.tip);
         mode = Mode.Modal;
-        ShowModal(d.ok ? "MISSION COMPLETE" : "MISSION DEBRIEF", sb.ToString(), new List<Btn> {
-            new Btn { label = "HARD: Crash Landing", act = () => StartHard() },
-            new Btn { label = "Play again (" + site + ")", act = () => StartGame(site) },
-            new Btn { label = "Other site", act = () => StartGame(site == "moon" ? "mars" : "moon") } }, 15);
+        ShowModal(d.ok ? "Mission complete" : (st.ending.reason == "dose" ? "Emergency evacuation" : "Medical evacuation"), sb.ToString(), new List<Btn> {
+            new Btn { label = "PLAY AGAIN  ·  " + site.ToUpper(), act = () => StartGame(site), primary = true },
+            new Btn { label = "OTHER SITE", act = () => StartGame(site == "moon" ? "mars" : "moon") },
+            new Btn { label = "HARD MODE", act = () => StartHard() } }, 15,
+            "MISSION DEBRIEF  ·  " + DayWord + " " + st.ending.day + (d.ok ? "  ·  " + d.stars + " OF 3 STARS" : ""), false, null, d.ok ? UiGood : UiBad);
     }
 
     // ------------------------------------------------------------------ modules
@@ -388,14 +392,15 @@ public partial class PioneerGame : MonoBehaviour
     {
         Func<string, string, Btn> ra = (r, label) => new Btn { label = (plan.ration == r ? "> " : "") + label, close = false, act = () => { plan.ration = r; Refresh(); ShowPlan(); } };
         Func<string, string, Btn> ac = (a, label) => new Btn { label = (plan.activity == a ? "> " : "") + label, close = false, act = () => { plan.activity = a; Refresh(); ShowPlan(); } };
-        ShowModal("HABITAT: PLAN THE " + DayWord,
+        ShowModal("Plan the " + dayWord,
             "Rations. Four astronauts eat " + Fmt(4 * V("food_person")) + " kg a day on Full rations. Food left: " + Mathf.RoundToInt((float)st.food) + " kg.\n" +
             "   Full: health goes up if every need is met.   Lean (75%): health -1 a day.   Half (50%): health -3 a day.\n\n" +
             "Activity.\n   Science: the lab earns " + Fmt(V("lab_science")) + " points (needs power).\n   Maintenance: repairs a broken module in three days" + (site == "mars" ? " and cleans the dust off the arrays" : "") + ".\n" +
             "   Shelter: cuts a solar storm dose to one tenth.\n\nToday: " + (pv.shut.Count > 0 ? "NOT ENOUGH POWER (off: " + string.Join(", ", pv.shut.Distinct()) + ")" : "power is fine") + ". Dose today: " + Fmt(pv.doseToday) + " mSv.",
             new List<Btn> { ra("full", "Full rations"), ra("lean", "Lean rations"), ra("half", "Half rations"),
                 ac("science", "Science"), ac("maintenance", "Maintenance"), ac("shelter", "Shelter"),
-                new Btn { label = "END " + DayWord, act = () => StartCoroutine(EndSol()) }, new Btn { label = "Back to the base" } }, 16);
+                new Btn { label = "END " + DayWord, act = () => StartCoroutine(EndSol()), primary = true }, new Btn { label = "Back to the base" } }, 16,
+            "HABITAT  ·  DAILY PLAN  ·  " + DayWord + " " + st.day);
     }
 
     int QueuedCount(string type) { return plan.build.Count(b => b == type); }
@@ -418,12 +423,13 @@ public partial class PioneerGame : MonoBehaviour
         bool canRepair = st.faults.Count > 0 && st.crates - QueuedCost() >= 1;
         list.Add(new Btn { label = plan.repair ? "Repair: ON (1 crate)" : "Repair a module (1 crate)", enabled = st.faults.Count > 0 && (plan.repair || canRepair), close = false,
             act = () => { plan.repair = !plan.repair; Refresh(); ShowBuild(); } });
-        list.Add(new Btn { label = "Done" });
+        list.Add(new Btn { label = "DONE", primary = true });
         string broken = st.faults.Count > 0 ? "\nBroken: " + string.Join(", ", st.faults.Select(f => SysName(f.type))) + ". Repair costs 1 crate, or three Maintenance days." : "";
-        ShowModal("SUPPLY DEPOT", "Crates left: " + (st.crates - QueuedCost() - (plan.repair ? 1 : 0)) + " of " + st.crates + ". No more crates arrive.\n" +
+        ShowModal("Supply depot", "Crates left: " + (st.crates - QueuedCost() - (plan.repair ? 1 : 0)) + " of " + st.crates + ". No more crates arrive.\n" +
             "New modules start working the next " + dayWord + ". The number is built + planned.\n\n" +
             "Solar array: power in sunlight.   Battery: stores 10 energy.   Fission reactor: 8 energy, day and night.\n" +
-            "Greenhouse: food every 10 days.   Ice drill: 6 L of water a day.   Shield layer: blocks a quarter of the radiation." + broken, list, 16);
+            "Greenhouse: food every 10 days.   Ice drill: 6 L of water a day.   Shield layer: blocks a quarter of the radiation." + broken, list, 16,
+            "LOGISTICS  ·  BUILD AND REPAIR");
         if (!tipBuild) { tipBuild = true; PipSay("Think about what is coming: " + (site == "moon" ? "a 15-day night with no solar power, and solar storms." : "a dust storm, dusty arrays, and a solar storm.") + " You cannot buy everything.", 1); }
     }
 }

@@ -103,7 +103,7 @@ public partial class PioneerGame
         for (int i = 0; i < types.Length; i++) AddPod(types[i], Ground(new Vector3(px[i], 0, pz[i])));
 
         BuildWreck(); BuildOutpost();
-        rover = BuildRoverModel();
+        rover = BuildRoverDetailed(siteRoot, Vector3.zero, 0f, wheels, true);
         BuildActors();
         player.root.gameObject.SetActive(false); foreach (var c in crew) c.root.gameObject.SetActive(false);
     }
@@ -142,7 +142,7 @@ public partial class PioneerGame
     void BuildOutpost()
     {
         var r = Empty("Outpost", siteRoot, Ground(OutpostPos));
-        var white = Lit(0.9f, 0.91f, 0.94f);
+        var white = PanelMat();
         P(PrimitiveType.Cylinder, r, new Vector3(0, 1.6f, 6f), new Vector3(9, 1.6f, 9), white);
         P(PrimitiveType.Sphere, r, new Vector3(0, 3.2f, 6f), new Vector3(9, 5f, 9), white);
         P(PrimitiveType.Cylinder, r, new Vector3(0, 0.9f, 6f), new Vector3(9.15f, 0.22f, 9.15f), Lit(0.95f, 0.5f, 0.15f));
@@ -154,29 +154,6 @@ public partial class PioneerGame
         P(PrimitiveType.Sphere, r, new Vector3(0, 12.2f, 6f), Vector3.one * 0.7f, Unlit(C(0.4f, 1f, 0.6f)), null, false);
         Label3D(siteRoot, Ground(OutpostPos) + Vector3.up * 14f, "OUTPOST", 0.12f, C(0.5f, 1f, 0.7f));
     }
-    Transform BuildRoverModel()
-    {
-        var r = Empty("PlayerRover", siteRoot, Vector3.zero);
-        var body = Empty("Body", r, Vector3.zero);
-        var white = Lit(0.9f, 0.9f, 0.94f); var dark = Lit(0.13f, 0.13f, 0.16f); var orange = Lit(0.95f, 0.5f, 0.15f);
-        P(PrimitiveType.Cube, body, new Vector3(0, 1.05f, 0), new Vector3(2.1f, 0.75f, 3.8f), white);
-        P(PrimitiveType.Cube, body, new Vector3(0, 1.05f, 0), new Vector3(2.14f, 0.16f, 3.84f), orange);
-        P(PrimitiveType.Cube, body, new Vector3(0, 1.75f, 0.75f), new Vector3(1.8f, 0.8f, 1.7f), Glass(C(0.3f, 0.6f, 0.9f, 0.55f)));
-        P(PrimitiveType.Cube, body, new Vector3(0, 2.18f, 0.75f), new Vector3(1.9f, 0.08f, 1.8f), white);
-        foreach (float x in new[] { -1.2f, 1.2f }) foreach (float z in new[] { -1.4f, 0f, 1.4f })
-        {
-            var w = P(PrimitiveType.Cylinder, r, new Vector3(x, 0.55f, z), new Vector3(1.1f, 0.2f, 1.1f), dark, new Vector3(0, 0, 90)); wheels.Add(w.transform);
-        }
-        P(PrimitiveType.Cylinder, body, new Vector3(0.7f, 2.6f, -1.5f), new Vector3(0.05f, 1f, 0.05f), dark);
-        P(PrimitiveType.Sphere, body, new Vector3(0.7f, 3.6f, -1.5f), Vector3.one * 0.14f, Unlit(C(1f, 0.3f, 0.3f)), null, false);
-        roverPanel = Empty("Panel", body, new Vector3(0, 1.55f, -1.05f));
-        P(PrimitiveType.Cube, roverPanel, Vector3.zero, new Vector3(2.0f, 0.06f, 1.5f), Lit(0.08f, 0.14f, 0.42f));
-        foreach (float x in new[] { -0.7f, 0.7f }) P(PrimitiveType.Sphere, body, new Vector3(x, 1.1f, 1.92f), Vector3.one * 0.24f, Unlit(C(1f, 0.97f, 0.8f)), null, false);
-        var lg = new GameObject("Headlights"); lg.transform.SetParent(body, false); lg.transform.localPosition = new Vector3(0, 1.3f, 2f); lg.transform.localEulerAngles = new Vector3(12, 0, 0);
-        roverLamp = lg.AddComponent<Light>(); roverLamp.type = LightType.Spot; roverLamp.range = 45f; roverLamp.spotAngle = 70f; roverLamp.color = C(1f, 0.96f, 0.85f); roverLamp.shadows = LightShadows.None;
-        return r;
-    }
-
     // ------------------------------------------------------------------ start
     void StartHard()
     {
@@ -226,18 +203,18 @@ public partial class PioneerGame
         PipSay("Everyone is safe, but the ship is gone. The outpost is 40 km north: follow the green beacon. Drive with WASD or ZQSD, or click the ground.", 2);
         PipSay("The rover has no water recycler and little air. Supply pods fell along the canyon: their light beams show where. Each one is a detour.", 1);
         yield return new WaitForSeconds(shots ? 0.3f : 1.5f);
-        AskQuestion("Before you leave, PIP checks the rover with you. Get it right and the battery is fully tuned.",
+        AskQuestion("Pre-drive systems check", "Battery tuned to 100% (80% if wrong)",
             right => { if (!right) js.battery = Math.Min(js.battery, 80); return right ? "Battery tuned: 100%." : "The battery is only at 80%."; });
     }
 
     // ------------------------------------------------------------------ technical challenges
-    void AskQuestion(string context, Func<bool, string> reward)
+    void AskQuestion(string heading, string rewardText, Func<bool, string> reward)
     {
         if (qIndex >= qOrder.Count) qIndex = 0;
         var q = Journey.Questions[qOrder[qIndex++]];
         var list = new List<Btn>();
         for (int i = 0; i < q.options.Length; i++) { int k = i; list.Add(new Btn { label = q.options[i], close = false, act = () => AnswerQuestion(q, k, reward) }); }
-        ShowModal("TECH CHALLENGE  -  " + q.topic, context + "\n\n" + q.text, list, 21);
+        ShowModal(heading, q.text, list, 21, "TECH CHALLENGE  ·  " + q.topic, true, "REWARD  ·  " + rewardText.ToUpper(), UiAmber);
         Sfx("on");
         if (shots) StartCoroutine(AutoAnswer(q, reward));
     }
@@ -252,7 +229,8 @@ public partial class PioneerGame
         string gain = reward != null ? reward(right) : "";
         if (right) { Flash(C(0.3f, 1f, 0.5f, 0.3f), 0.6f); Sfx("good"); Burst(roverPos + Vector3.up * 3f, C(0.4f, 1f, 0.6f), 30, 7f); }
         else { Flash(C(1f, 0.5f, 0.2f, 0.25f), 0.5f); Sfx("off"); }
-        ShowModal(right ? "Correct!" : "Not quite", q.text + "\n\nAnswer: " + q.options[q.answer] + "\n" + q.why + "\n\n" + gain, new List<Btn> { new Btn { label = "Continue" } }, 19);
+        ShowModal("Answer: " + q.options[q.answer], q.why + "\n\n" + gain, new List<Btn> { new Btn { label = "CONTINUE" } }, 19,
+            (right ? "CORRECT" : "NOT QUITE") + "  ·  " + q.topic, false, "RESULT  ·  " + gain.ToUpper(), right ? UiGood : UiAmber);
         RefreshJourneyHud();
     }
     void OpenPod(Pod pod)
@@ -260,7 +238,7 @@ public partial class PioneerGame
         pod.taken = true; roverSpeed = 0; driveTarget = null;
         var c = pod.beam.color; c.a = 0f; pod.beam.color = c; pod.lamp.color = C(0.2f, 0.2f, 0.2f); pod.label.text = "";
         Burst(pod.pos + Vector3.up * 2f, PodColor(pod.type), 30, 6f);
-        AskQuestion("Supply pod reached: " + pod.type.ToUpper() + ". The hatch is jammed. Solve this to open it fully (a wrong answer opens it half way).",
+        AskQuestion("Supply pod: " + pod.type + ". The hatch is jammed.", "Full contents (half if wrong)",
             right => "Pod opened: " + Journey.ApplyPod(js, pod.type, right) + (right ? "." : " (half)."));
     }
 
@@ -315,7 +293,7 @@ public partial class PioneerGame
             roverPos = Ground(np); drivenToday += dist;
             Journey.Drive(js, dist / MetersPerKm, sand);
             js.traveledKm = Math.Max(js.traveledKm, Mathf.Clamp(roverPos.z, 0, JourneyLen) / MetersPerKm);
-            foreach (var w in wheels) w.Rotate(Vector3.up * roverSpeed * dt * 110f, Space.Self);
+            foreach (var w in wheels) w.Rotate(Vector3.right * roverSpeed * dt * 102f, Space.Self);
             puffT -= dt; if (puffT <= 0) { puffT = 0.07f; DustPuff(roverPos - RoverForward * 1.8f, sand ? 3 : 1); }
             if (!campBusy) dayT = 0.30f + Mathf.Min(0.36f, drivenToday / (float)(Journey.KmPerCharge * MetersPerKm) * 0.30f);
         }
@@ -362,8 +340,9 @@ public partial class PioneerGame
     void RefreshJourneyHud()
     {
         if (!journey || js == null) return;
-        solText.text = "SOL " + js.sol + "   HARD MODE";
-        crateText.text = "Crates: " + js.crates;
+        siteText.text = "HARD MODE  ·  CRASH LANDING  ·  CREW 4";
+        solText.text = "SOL " + js.sol;
+        crateText.text = "CRATES " + js.crates + "   ·   PODS " + js.pods + "/7";
         Vector3 to = Ground(OutpostPos) - roverPos; float rel = Mathf.DeltaAngle(camYaw, Mathf.Atan2(to.x, to.z) * Mathf.Rad2Deg);
         string dir = Mathf.Abs(rel) < 25f ? "straight ahead" : (Mathf.Abs(rel) > 140f ? "behind you" : (rel > 0 ? "to the right" : "to the left"));
         alertText.text = "Outpost: " + Fmt(Journey.KmLeft(js)) + " km, " + dir + (js.sol == Journey.StormSol ? "\nDust storm today: tonight's recharge is only " + Fmt(Journey.StormRecharge) + "%." : "");
@@ -403,7 +382,7 @@ public partial class PioneerGame
         if (js.failed) { yield return JourneyFail(); yield break; }
         mode = Mode.Play;
         if (js.sol == Journey.StormSol) PipSay("A dust storm is here. Tonight the panel will recharge only " + Fmt(Journey.StormRecharge) + "%. Use today's battery well.", 2);
-        AskQuestion("Morning check. PIP has a problem for you. Solve it to tune the solar panel: +15% battery.",
+        AskQuestion("Morning check with PIP", "+15% battery",
             right => { if (right) js.battery = Math.Min(100, js.battery + 15); return right ? "Panel tuned: +15% battery." : "No bonus this morning."; });
     }
 
@@ -447,9 +426,10 @@ public partial class PioneerGame
         foreach (var l in js.log.Take(5)) sb.AppendLine("  " + l);
         sb.AppendLine().AppendLine("The trade-off: every detour and every stretch of soft sand costs battery, and every night to recharge costs a sol of air, water and food.");
         sb.AppendLine().AppendLine("Next time: " + (js.pods == 0 ? "open the oxygen and water pods near your route, and drive around the soft sand." : "drive around the soft sand, and solve the morning challenge for extra battery."));
-        ShowModal("MISSION DEBRIEF", sb.ToString(), new List<Btn> {
-            new Btn { label = "Try Hard mode again", act = () => StartHard() },
-            new Btn { label = "Normal mode (Mars)", act = () => { journey = false; SetJourneyHud(false); StartGame("mars"); } } }, 16);
+        ShowModal("Medical evacuation", sb.ToString(), new List<Btn> {
+            new Btn { label = "TRY HARD MODE AGAIN", act = () => StartHard(), primary = true },
+            new Btn { label = "NORMAL MODE  ·  MARS", act = () => { journey = false; SetJourneyHud(false); StartGame("mars"); } } }, 16,
+            "MISSION DEBRIEF  ·  SOL " + js.sol + "  ·  " + Fmt(Journey.KmLeft(js)) + " KM SHORT", false, null, UiBad);
     }
     GameObject reliefShipJourney;
 }

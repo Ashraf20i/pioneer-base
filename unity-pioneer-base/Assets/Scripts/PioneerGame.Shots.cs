@@ -76,7 +76,8 @@ public partial class PioneerGame
         while (journey && !js.failed && frame++ < 40000)
         {
             if (frame == 150) Snap("hard_03_drive");
-            if (!podShot && mode == Mode.Modal && js.pods >= 1 && modalTitle.text.StartsWith("TECH")) { podShot = true; Snap("hard_04_pod_question"); }
+            if (frame == 200) { float y0 = camYaw, p0 = camPitch, d0 = camDist; camYaw = roverYaw + 130f; camPitch = 12f; camDist = 9f; SnapJourneyCamera(); yield return Frames(3); Snap("hard_03b_rover_close"); camYaw = y0; camPitch = p0; camDist = d0; }
+            if (!podShot && mode == Mode.Modal && js.pods >= 1 && modalKicker.text.StartsWith("TECH")) { podShot = true; Snap("hard_04_pod_question"); }
             if (!sandShot && InSand(roverPos)) { sandShot = true; Snap("hard_05_sand"); }
             if (!campShot && campBusy && dayA < 0.3f) { campShot = true; Snap("hard_06_camp_night"); }
             if (!stormShot && js.sol == Journey.StormSol && stormK > 0.9f && mode == Mode.Play) { stormShot = true; Snap("hard_07_storm"); }
