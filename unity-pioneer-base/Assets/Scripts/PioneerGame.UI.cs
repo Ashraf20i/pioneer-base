@@ -94,7 +94,7 @@ public partial class PioneerGame
         infoText = TextUI("Info", bot, Vector2.zero, new Vector2(0.44f, 1), 16, TextAnchor.MiddleLeft, Color.white);
         var rb = ButtonUI("Ration", bot, "", CycleRation, 16); Place(rb, 0.45f, 0.12f, 0.60f, 0.88f); rationTxt = rb.GetComponentInChildren<Text>(); rb.GetComponent<Image>().color = new Color(0.45f, 0.32f, 0.12f);
         var ab = ButtonUI("Activity", bot, "", CycleActivity, 16); Place(ab, 0.61f, 0.12f, 0.78f, 0.88f); actTxt = ab.GetComponentInChildren<Text>(); ab.GetComponent<Image>().color = new Color(0.3f, 0.22f, 0.5f);
-        endBtn = ButtonUI("EndSol", bot, "END SOL", () => StartCoroutine(EndSol()), 22); Place(endBtn, 0.795f, 0.1f, 0.99f, 0.9f);
+        endBtn = ButtonUI("EndSol", bot, "END SOL", () => { if (journey) StartCoroutine(Camp()); else StartCoroutine(EndSol()); }, 22); Place(endBtn, 0.795f, 0.1f, 0.99f, 0.9f);
         endBtn.GetComponent<Image>().color = new Color(0.12f, 0.6f, 0.36f);
 
         var tl = Panel("Timeline", hud, new Vector2(0.02f, 64f / 720f), new Vector2(0.98f, 86f / 720f), new Color(0.02f, 0.04f, 0.08f, 0.6f));
@@ -213,7 +213,7 @@ public partial class PioneerGame
             if (g.low) { var c = g.fill.color; c.a = 0.55f + 0.45f * Mathf.Abs(Mathf.Sin(Time.time * 5f)); g.fill.color = c; }
 
         // module card for the nearest module
-        Mod near = mode == Mode.Play ? NearMod(3.4f) : null;
+        Mod near = mode == Mode.Play && !journey ? NearMod(3.4f) : null;
         if (near != cardMod) { cardMod = near; cardRoot.SetActive(near != null); if (near != null) FillCard(); }
     }
     float bannerDur = 2.5f;
@@ -255,7 +255,7 @@ public partial class PioneerGame
 
     void RefreshHud()
     {
-        solText.text = DayWord + " " + Mathf.Min(st.day, Sim.MAX_DAY) + " / " + Sim.MAX_DAY + "   " + (site == "moon" ? "MOON" : "MARS");
+        solText.text = DayWord + " " + Mathf.Min(st.day, Sim.MAX_DAY) + " / " + Sim.MAX_DAY + "   " + (site == "moon" ? "MOON" : "MARS") + (hardMode ? "  HARD" : "");
         crateText.text = "Crates: " + (st.crates - QueuedCost() - (plan.repair ? 1 : 0));
         var alerts = Sim.AlertsFor(st, st.day).Select(a => a.text).ToList();
         if (st.faults.Count > 0) alerts.Add("Broken: " + string.Join(", ", st.faults.Select(f => SysName(f.type))) + ".");

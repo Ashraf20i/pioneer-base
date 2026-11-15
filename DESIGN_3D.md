@@ -79,3 +79,21 @@ Le moteur (`Assets/Scripts/Core`) ne change pas. Les tests d'équilibrage (`csha
 - La phrase de PIP « sunsets on Mars look blue » est vraie (images des rovers), mais sa source n'est pas encore dans `SOURCES.md`.
 - Tester sur un vrai téléphone (la 3D WebGL demande un appareil récent).
 - Décision go/no-go : si la 3D pose problème, `main` (2D) et la version web restent les soumissions de secours.
+
+## 9. Mode Difficile : « Crash Landing » (ajout du 15 novembre)
+
+Le mode Normal ne change pas. Le mode Difficile ajoute un voyage avant la base (Mars seulement).
+
+- **Départ** : le vaisseau s'écrase à 40 km de l'avant-poste. Oxygène pour moins de 5 sols, pas de recycleur d'eau dans le rover.
+- **Conduite** : le joueur conduit le rover dans un canyon vers une balise verte. Une batterie pleine fait 10,5 km ; le sable mou double la consommation.
+- **Camp** : quand la batterie est vide, on campe. La nuit recharge la batterie et coûte un sol d'oxygène, d'eau et de nourriture. Tempête de poussière au sol 3 : recharge de 35 % seulement.
+- **Capsules** : sept capsules de ravitaillement sont tombées le long du canyon (oxygène, eau, batterie, caisses, nourriture). Chacune est un détour.
+- **Défis techniques** : douze questions de chimie et de physique à trois choix (électrolyse, combustion de l'hydrogène, énergie = puissance x temps, distance / vitesse, loi en carré inverse, radiation, blindage, recyclage). Une bonne réponse ouvre la capsule en entier ou donne +15 % de batterie le matin ; une mauvaise donne la moitié, avec l'explication.
+- **Arrivée** : la mission de 30 sols commence avec ce qui reste, plus les réserves réduites de l'avant-poste, et 9 caisses plus celles des capsules.
+- **Échec** : si la santé tombe à zéro, une navette de secours récupère l'équipage (« medical evacuation »), puis débrief.
+
+Règles : `Assets/Scripts/Core/Journey.cs`. Monde, conduite et écrans : `Assets/Scripts/PioneerGame.Journey.cs`.
+
+Tests (`csharp-tests`) : un trajet prudent arrive en pleine santé ; les capsules rapportent des caisses ; une conduite négligente coûte la santé ; la base se gagne dans 55 % des cas sans capsule et 100 % avec quatre capsules (joueur expert, 200 parties).
+
+Toutes les valeurs du voyage sont « Simplified », sauf les besoins de l'équipage qui reprennent les valeurs Real/Derived. À vérifier par l'équipe : les énoncés des douze questions (arithmétique vérifiée ; la question sur l'air de Mars cite MOXIE, déjà dans les sources).

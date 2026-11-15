@@ -44,6 +44,41 @@ static class Program
         Check(label, wins == 0, wins + " of " + games + " games completed");
     }
 
+    static JourneyState RunJourney(double detour, double sandShare, string[] pods)
+    {
+        var j = new JourneyState(); int pi = 0, guard = 0;
+        while (!j.arrived && !j.failed && guard++ < 14)
+        {
+            double want = 30;                                  // drive until the battery is empty
+            double d = Journey.Drive(j, want * sandShare, true) + Journey.Drive(j, want, false);
+            j.traveledKm += d * (1 - detour);
+            if (pi < pods.Length) Journey.ApplyPod(j, pods[pi++], true);
+            if (j.traveledKm >= Journey.TotalKm) { j.arrived = true; break; }
+            Journey.Camp(j);
+        }
+        return j;
+    }
+    static readonly string[][] HardBuilds = {
+        new[] { "reactor", "drill", "shield", "greenhouse", "solar" }, new[] { "reactor", "greenhouse", "drill", "shield" },
+        new[] { "reactor", "shield", "drill", "drill" }, new[] { "greenhouse", "drill", "shield", "solar", "solar", "battery" },
+        new[] { "reactor", "drill", "greenhouse" }, new[] { "reactor", "drill", "drill", "shield" } };
+    static double BaseWinRate(JourneyState j)
+    {
+        double best = 0;
+        foreach (var b in HardBuilds)
+        {
+            int wins = 0;
+            for (int s = 1; s <= N; s++)
+            {
+                var st = Journey.ToGameState(j, s); var bot = Players.Expert(new ExpertOpts { builds = b.ToList() }); int guard = 0;
+                while (!st.over && guard++ < 40) Sim.RunDay(st, bot(st));
+                if (st.ending.type == "success") wins++;
+            }
+            best = Math.Max(best, wins / (double)N);
+        }
+        return best;
+    }
+
     static int Main()
     {
         foreach (var site in new[] { "moon", "mars" })
@@ -81,6 +116,22 @@ static class Program
                         bad++;
                 }
         Check("Debrief: complete and never uses banned words", bad == 0, bad + " bad debriefs");
+
+        // ---------------- Hard mode: the rover journey, then the base with what is left
+        Console.WriteLine(); Console.WriteLine("Hard mode (Crash Landing)");
+        var careful = RunJourney(0.0, 0.0, new string[0]);
+        var good = RunJourney(0.12, 0.05, new[] { "oxygen", "water", "crates", "battery", "crates" });
+        var careless = RunJourney(0.25, 0.35, new string[0]);
+        foreach (var kv in new[] { ("careful", careful), ("good", good), ("careless", careless) })
+            Console.WriteLine("  journey " + kv.Item1 + ": arrived=" + kv.Item2.arrived + " sols=" + kv.Item2.sol + " o2=" + kv.Item2.o2.ToString("0.0") + " water=" + kv.Item2.water.ToString("0.0") + " food=" + kv.Item2.food.ToString("0.0") + " health=" + kv.Item2.health + " crates=" + kv.Item2.crates);
+        Check("Journey: a straight, careful drive arrives with full health", careful.arrived && careful.health >= 100, "sol " + careful.sol);
+        Check("Journey: collecting pods arrives with more crates", good.arrived && good.crates > careful.crates, good.crates + " crates");
+        Check("Journey: a careless drive costs health", careless.failed || careless.health < 100, "health " + careless.health + (careless.failed ? " (evacuated)" : ""));
+        double wCareful = BaseWinRate(careful), wGood = BaseWinRate(good);
+        Check("Hard base after a careful journey: winnable (at least 20%)", wCareful >= 0.20, (100 * wCareful).ToString("0.0") + "% completed");
+        Check("Hard base after a good journey: at least as winnable", wGood >= wCareful, (100 * wGood).ToString("0.0") + "% completed");
+        if (!careless.failed) Console.WriteLine("  (info) base after a careless journey: " + (100 * BaseWinRate(careless)).ToString("0.0") + "% completed");
+        Check("Tech questions: 12 questions, each with 3 options and a valid answer", Journey.Questions.Count == 12 && Journey.Questions.All(q => q.options.Length == 3 && q.answer >= 0 && q.answer < 3 && q.why.Length > 10), Journey.Questions.Count + " questions");
 
         Console.WriteLine(failures > 0 ? "\n" + failures + " check(s) FAILED" : "\nAll checks passed");
         return failures > 0 ? 1 : 0;

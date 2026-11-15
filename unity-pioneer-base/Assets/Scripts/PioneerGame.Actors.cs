@@ -140,6 +140,7 @@ public partial class PioneerGame
     void TickActors(float dt)
     {
         if (player == null) return;
+        if (journey) { TickPip(roverPos, roverYaw, dt, 2.6f); if (helmetLamp != null) helmetLamp.intensity = 0; return; }
         AnimateAstro(player, dt, 1f); player.moving = false;
         bool hide = st != null && plan != null && plan.activity == "shelter" && mode != Mode.Title;
         float lapse = lapseActive ? 5f : 1f;
@@ -166,8 +167,13 @@ public partial class PioneerGame
         }
         if (helmetLamp != null) helmetLamp.intensity = 2.4f * (1f - dayA) + (stormK > 0.5f ? 1.2f : 0f);
 
-        // PIP hovers beside the player and looks where they look
-        Vector3 want = player.pos + Quaternion.Euler(0, player.yaw, 0) * new Vector3(1.15f, 2.05f, -0.2f) + Vector3.up * Mathf.Sin(Time.time * 2.4f) * 0.1f;
+        TickPip(player.pos, player.yaw, dt, 1.15f);
+    }
+
+    // PIP hovers beside the player (or the rover) and looks at the camera
+    void TickPip(Vector3 anchor, float yaw, float dt, float side)
+    {
+        Vector3 want = anchor + Quaternion.Euler(0, yaw, 0) * new Vector3(side, side > 2f ? 3.3f : 2.05f, -0.2f) + Vector3.up * Mathf.Sin(Time.time * 2.4f) * 0.1f;
         pipPos = Vector3.Lerp(pipPos, want, 1f - Mathf.Exp(-dt * 3.5f));
         pip.position = pipPos;
         Vector3 look = (cam.transform.position - pipPos); look.y *= 0.3f;
@@ -187,7 +193,7 @@ public partial class PioneerGame
         else if (cineActive) { wantPos = cinePos; wantLook = cineLook; speed = cineSpeed; }
         else
         {
-            wantLook = player.pos + Vector3.up * 1.5f;
+            wantLook = (journey ? roverPos : player.pos) + Vector3.up * (journey ? 2f : 1.5f);
             wantPos = wantLook + Quaternion.Euler(camPitch, camYaw, 0) * new Vector3(0, 0, -camDist);
         }
         float minY = H(wantPos.x, wantPos.z) + 0.7f; if (wantPos.y < minY) wantPos.y = minY;

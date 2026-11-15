@@ -110,6 +110,7 @@ public partial class PioneerGame
     }
     float H(float x, float z)
     {
+        if (journey) return HJ(x, z);
         float d = Mathf.Sqrt(x * x + z * z);
         float mask = Mathf.SmoothStep(0, 1, Mathf.InverseLerp(42, 88, d));
         float far = Mathf.SmoothStep(0, 1, Mathf.InverseLerp(100, 165, d));
@@ -336,7 +337,7 @@ public partial class PioneerGame
     // ------------------------------------------------------------------ site
     void BuildSite(string s)
     {
-        site = s;
+        site = s; journey = false;
         if (siteRoot != null) Destroy(siteRoot.gameObject);
         mods.Clear(); modByCol.Clear(); slots.Clear(); billboards.Clear(); shieldRings.Clear(); crates.Clear(); crew.Clear(); prints.Clear();
         siteRoot = new GameObject("Site").transform; siteRoot.SetParent(world, false);
@@ -736,13 +737,13 @@ public partial class PioneerGame
         }
         if (objMarker != null)
         {
-            bool show = mode != Mode.Title && st != null && st.day == 1 && !tipBuild;
+            bool show = mode != Mode.Title && !journey && st != null && st.day == 1 && !tipBuild;
             objMarker.gameObject.SetActive(show);
             if (show) { objMarker.position = depotMod.pos + Vector3.up * (5.6f + Mathf.Sin(t * 3f) * 0.4f); objMarker.Rotate(Vector3.up * 90f * dt, Space.World); }
         }
         bool shelter = plan != null && plan.activity == "shelter" && mode != Mode.Title;
         float sa = shelter ? 0.10f + 0.05f * Mathf.Sin(t * 4f) : 0f; var sc = shelterMat.color; sc.a = Mathf.MoveTowards(sc.a, sa, dt * 0.5f); shelterMat.color = sc;
-        shelterBubble.SetActive(sc.a > 0.003f);
+        if (shelterBubble != null) shelterBubble.SetActive(sc.a > 0.003f);
         if (habLight != null) habLight.intensity = (habMod.noPower ? 0.15f : 1.7f) * (1f - dayA * 0.85f);
     }
 }

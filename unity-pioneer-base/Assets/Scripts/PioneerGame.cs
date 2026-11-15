@@ -52,7 +52,8 @@ public partial class PioneerGame : MonoBehaviour
     void Update()
     {
         float dt = Mathf.Min(Time.deltaTime, 0.05f);
-        if (mode == Mode.Play) HandleInput(dt);
+        if (mode == Mode.Play && !journey) HandleInput(dt);
+        if (journey) TickJourney(dt);
         TickActors(dt); TickWorld(dt); TickCamera(dt); TickSky(dt); TickFx(dt); TickUI(dt);
     }
 
@@ -132,13 +133,15 @@ public partial class PioneerGame : MonoBehaviour
             "Drag to look around, scroll to zoom.\nSpend your 14 crates at the Supply Depot, plan each day, then press END SOL.\n\nChoose a site:\n\n" + GameData.SourcesNote,
             new List<Btn> {
                 new Btn { label = "Mars (dust storms)", act = () => StartGame("mars") },
-                new Btn { label = "Moon (15-day night)", act = () => StartGame("moon") } }, 18);
+                new Btn { label = "Moon (15-day night)", act = () => StartGame("moon") },
+                new Btn { label = "HARD: Crash Landing", act = () => StartHard() } }, 18);
     }
 
-    void StartGame(string s)
+    void StartGame(string s, GameState preset = null)
     {
+        journey = false; hardMode = preset != null; SetJourneyHud(false); debugStorm = -1f;
         site = s; seed = (int)(DateTime.Now.Ticks % 100000) + 1;
-        st = Sim.NewGame(site, seed); plan = Sim.DefaultPlan(st); pv = null;
+        st = preset ?? Sim.NewGame(site, seed); plan = Sim.DefaultPlan(st); pv = null;
         ClearFx(); bannerQueue.Clear(); pipQueue.Clear(); pipFull = ""; pipShown = 0; pipRoot.SetActive(false); bannerT = 0;
         dayT = 0.34f; moonDayF = 1f; camYaw = 0f; camPitch = 20f; camDist = 13f; tipBuild = false; tipWarned = false; cardMod = null; cardRoot.SetActive(false);
         BuildSite(site); Refresh();
@@ -151,9 +154,10 @@ public partial class PioneerGame : MonoBehaviour
         mode = Mode.Cine; Letterbox(true); cineActive = true; cineSpeed = 1.1f;
         camPos = new Vector3(60f, 75f, -150f); camLook = new Vector3(0, 0, 0);
         cinePos = new Vector3(10f, 9f, -30f); cineLook = new Vector3(0, 3f, 0);
-        BannerQ(DayWord + " 1", site == "mars" ? "Martian outpost. Thirty sols until the relief crew arrives." : "Lunar outpost. Thirty days until the relief crew arrives.", C(0.7f, 0.92f, 1f));
+        BannerQ(DayWord + " 1", hardMode ? "Hard mode. Thirty sols with what the journey left you." : (site == "mars" ? "Martian outpost. Thirty sols until the relief crew arrives." : "Lunar outpost. Thirty days until the relief crew arrives."), C(0.7f, 0.92f, 1f));
         yield return new WaitForSeconds(shots ? 1.2f : 3.6f);
         cineActive = false; Letterbox(false); mode = Mode.Play; Refresh();
+        if (hardMode) { PipSay("We made it to the outpost. Stocks are low and you have " + st.crates + " crates. Spend them at the Supply Depot, then plan each sol.", 3); yield break; }
         PipSay("I am PIP, your base assistant. Your crew needs air, water, food and power for 30 " + dayWord + "s. Start at the Supply Depot: you have 14 crates.", 0);
         if (site == "moon") PipSay("We are on the Moon. The sky is black even by day, because there is no air. Night comes on day 11 and lasts 15 days.", 1);
         else PipSay("We are on Mars. Sunlight here is only 43% of what the Moon gets, and dust settles on the arrays every sol.", 1);
@@ -302,6 +306,7 @@ public partial class PioneerGame : MonoBehaviour
         sb.AppendLine().AppendLine("Next time: " + d.tip);
         mode = Mode.Modal;
         ShowModal(d.ok ? "MISSION COMPLETE" : "MISSION DEBRIEF", sb.ToString(), new List<Btn> {
+            new Btn { label = "HARD: Crash Landing", act = () => StartHard() },
             new Btn { label = "Play again (" + site + ")", act = () => StartGame(site) },
             new Btn { label = "Other site", act = () => StartGame(site == "moon" ? "mars" : "moon") } }, 15);
     }

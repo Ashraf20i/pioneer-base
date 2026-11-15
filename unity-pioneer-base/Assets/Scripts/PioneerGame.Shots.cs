@@ -66,6 +66,34 @@ public partial class PioneerGame
         Debug.Log("[SHOT] mission " + tag + " ended: " + st.ending.type + " day " + st.ending.day + " stars " + st.ending.stars);
     }
 
+    // Hard mode: the scripted driver plays the whole journey, then the base with the Expert bot.
+    IEnumerator HardRun()
+    {
+        DismissModal(); StartHard(); yield return Frames(12); Snap("hard_01_crash");
+        int g = 0; while (mode != Mode.Play && mode != Mode.Modal && g++ < 2000) yield return null;
+        yield return Frames(4); Snap("hard_02_question");
+        autoDrive = true; int frame = 0, lastSol = 1; bool sandShot = false, podShot = false, stormShot = false, campShot = false, arriveShot = false;
+        while (journey && !js.failed && frame++ < 40000)
+        {
+            if (frame == 150) Snap("hard_03_drive");
+            if (!podShot && mode == Mode.Modal && js.pods >= 1 && modalTitle.text.StartsWith("TECH")) { podShot = true; Snap("hard_04_pod_question"); }
+            if (!sandShot && InSand(roverPos)) { sandShot = true; Snap("hard_05_sand"); }
+            if (!campShot && campBusy && dayA < 0.3f) { campShot = true; Snap("hard_06_camp_night"); }
+            if (!stormShot && js.sol == Journey.StormSol && stormK > 0.9f && mode == Mode.Play) { stormShot = true; Snap("hard_07_storm"); }
+            if (js.sol != lastSol) { lastSol = js.sol; Debug.Log("[SHOT] journey sol " + js.sol + " km=" + js.traveledKm.ToString("0.0") + " o2=" + js.o2.ToString("0.0") + " bat=" + js.battery.ToString("0") + " pods=" + js.pods); }
+            if (js.arrived && !arriveShot) { arriveShot = true; yield return Frames(20); Snap("hard_08_arrival"); }
+            yield return null;
+        }
+        autoDrive = false;
+        Debug.Log("[SHOT] journey ended: arrived=" + js.arrived + " failed=" + js.failed + " sol=" + js.sol + " o2=" + js.o2.ToString("0.0") + " health=" + js.health + " crates=" + js.crates + " right=" + js.right + "/" + js.asked);
+        if (js.failed) { yield return Frames(200); Snap("hard_09_fail"); yield break; }
+        yield return WaitNotCine(); yield return Frames(20); Snap("hard_09_base_start");
+        var bot = Players.Expert(new ExpertOpts { builds = new System.Collections.Generic.List<string> { "reactor", "drill", "shield", "greenhouse", "solar" } }); int guard = 0;
+        while (!st.over && guard++ < 45) { DismissModal(); plan = bot(st); Refresh(); StartCoroutine(EndSol()); yield return WaitNotCine(); }
+        yield return Frames(20); Snap("hard_10_debrief");
+        Debug.Log("[SHOT] mission hard ended: " + st.ending.type + " day " + st.ending.day + " stars " + st.ending.stars);
+    }
+
     IEnumerator ShotRun()
     {
         Time.captureFramerate = 30;
@@ -73,9 +101,14 @@ public partial class PioneerGame
         shotRT = new RenderTexture(1280, 720, 24); cam.targetTexture = shotRT;
         canvas.renderMode = RenderMode.ScreenSpaceCamera; canvas.worldCamera = cam; canvas.planeDistance = 0.35f;
         yield return Frames(60); Snap("00_title");
+        yield return HardRun();
+        bool hardOnly = false; try { hardOnly = System.Linq.Enumerable.Contains(Environment.GetCommandLineArgs(), "-pbhard"); } catch (Exception) { }
+        if (!hardOnly)
+        {
         yield return PlayMission("mars", "mars", Players.Expert(), true);
         yield return PlayMission("moon", "moon", Players.Expert(), true);
         yield return PlayMission("moon", "fail", Players.Naive(), false);
+        }
         // ending cinematics, mid-flight
         Debug.Log("[SHOT] all done");
         yield return Frames(5);
