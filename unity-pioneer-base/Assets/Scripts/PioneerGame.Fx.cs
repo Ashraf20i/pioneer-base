@@ -1,314 +1,213 @@
-// Pioneer Base - PioneerGame.Fx.cs
-// Animations for every notable event: particles, floating text, banners, screen flashes and shake,
-// persistent weather (night, dust storm, solar storm), and the 30-day mission timeline.
+// Pioneer Base 3D - PioneerGame.Fx.cs
+// Particles, weather, floating text, generated sound, and the reaction to each day's events.
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
-using UnityEngine.UI;
 using PioneerBase;
 
 public partial class PioneerGame
 {
-    class Particle { public Transform t; public SpriteRenderer sr; public Vector2 vel; public float life, max, s0, s1, grav; public Color c0, c1; }
+    ParticleSystem psGlow, psSpark, psSmoke;
     class FloatT { public Transform t; public TextMesh tm; public float life, max; public Color col; }
-    readonly List<Particle> parts = new List<Particle>();
     readonly List<FloatT> floats = new List<FloatT>();
+    float dustAcc, radAcc, geigerT, moteAcc;
 
-    Image flashImg; Color flashCol; float flashT, flashDur;
-    CanvasGroup bannerGroup; Text bannerTitle, bannerSub; float bannerT; Color bannerCol;
-    float shakeAmt, nextRad;
-    SpriteRenderer weather;
-    Image[] tlCell, tlLow, tlTop, tlCard;
-    float dayPop, dustTimer;
-    Image Img(string name, Transform parent, Vector2 aMin, Vector2 aMax, Color col) { return Panel(name, parent, aMin, aMax, col).GetComponent<Image>(); }
-
-    // ------------------------------------------------------------------ setup
-    void BuildFxRoot()
+    // ------------------------------------------------------------------ particles
+    void InitFx()
     {
-        weather = Quad("Weather", world, Vector2.zero, new Vector2(60, 40), new Color(0, 0, 0, 0), 15);
-
-        var cgo = new GameObject("FxCanvas", typeof(Canvas), typeof(CanvasScaler));
-        var canvas = cgo.GetComponent<Canvas>(); canvas.renderMode = RenderMode.ScreenSpaceOverlay; canvas.sortingOrder = -5;
-        var cs = cgo.GetComponent<CanvasScaler>(); cs.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-        cs.referenceResolution = new Vector2(1280, 720); cs.matchWidthOrHeight = 0.5f;
-        var root = cgo.transform;
-
-        flashImg = Img("Flash", root, Vector2.zero, Vector2.one, new Color(1, 1, 1, 0)); flashImg.raycastTarget = false;
-
-        var ban = Panel("Banner", root, new Vector2(0.05f, 0.52f), new Vector2(0.95f, 0.72f), new Color(0, 0, 0, 0.55f));
-        ban.GetComponent<Image>().raycastTarget = false;
-        bannerGroup = ban.gameObject.AddComponent<CanvasGroup>(); bannerGroup.alpha = 0; bannerGroup.blocksRaycasts = false;
-        bannerTitle = TextUI("T", ban, new Vector2(0, 0.45f), Vector2.one, 44, TextAnchor.MiddleCenter, Color.white);
-        bannerTitle.fontStyle = FontStyle.Bold;
-        bannerSub = TextUI("S", ban, new Vector2(0, 0), new Vector2(1, 0.5f), 20, TextAnchor.UpperCenter, new Color(0.85f, 0.92f, 1f));
-
-        // 30-day mission timeline just above the bottom bar
-        var tl = Panel("Timeline", root, new Vector2(0.02f, 64f / 720f), new Vector2(0.98f, 88f / 720f), new Color(0.02f, 0.04f, 0.08f, 0.75f));
-        tl.GetComponent<Image>().raycastTarget = false;
-        tlCell = new Image[Sim.MAX_DAY]; tlLow = new Image[Sim.MAX_DAY]; tlTop = new Image[Sim.MAX_DAY]; tlCard = new Image[Sim.MAX_DAY];
-        for (int i = 0; i < Sim.MAX_DAY; i++)
-        {
-            float x0 = i / (float)Sim.MAX_DAY + 0.0025f, x1 = (i + 1) / (float)Sim.MAX_DAY - 0.0025f;
-            tlCell[i] = Img("D" + (i + 1), tl, new Vector2(x0, 0.12f), new Vector2(x1, 0.88f), new Color(0.2f, 0.28f, 0.4f, 0.55f));
-            tlLow[i] = Img("Low", tlCell[i].transform, new Vector2(0, 0), new Vector2(1, 0.3f), new Color(0, 0, 0, 0));
-            tlTop[i] = Img("Top", tlCell[i].transform, new Vector2(0, 0.7f), new Vector2(1, 1f), new Color(0, 0, 0, 0));
-            tlCard[i] = Img("Card", tlCell[i].transform, new Vector2(0.35f, 0.35f), new Vector2(0.65f, 0.65f), new Color(0, 0, 0, 0));
-            foreach (var im in new[] { tlCell[i], tlLow[i], tlTop[i], tlCard[i] }) im.raycastTarget = false;
-        }
+        psGlow = MakePS("FxGlow", shAdd, glowTex, 0f, false);
+        psSpark = MakePS("FxSpark", shAdd, glowTex, 0.9f, false);
+        psSmoke = MakePS("FxSmoke", shBlend, softTex, -0.02f, true);
     }
-
-    // ------------------------------------------------------------------ "what can I do here" prompt
-    TextMesh promptText; SpriteRenderer promptPill;
-    static string Hint(string id)
+    ParticleSystem MakePS(string name, Shader sh, Texture tex, float gravity, bool grow)
     {
-        switch (id)
-        {
-            case "oxygen": return "OXYGEN PLANT: switch on / off";
-            case "lab": return "SCIENCE LAB: switch on / off";
-            case "greenhouse": return "GREENHOUSE: change how many run";
-            case "drill": return "ICE DRILL: change how many run";
-            case "kitchen": return "KITCHEN: choose the rations";
-            case "airlock": return "AIRLOCK: choose today's activity";
-            case "build": return "BUILD BAY: build and repair";
-            default: return "COMMAND: end the day";
-        }
+        var go = new GameObject(name); go.transform.SetParent(world, false);
+        var ps = go.AddComponent<ParticleSystem>(); ps.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+        var main = ps.main; main.loop = true; main.playOnAwake = false; main.simulationSpace = ParticleSystemSimulationSpace.World;
+        main.maxParticles = 5000; main.gravityModifier = gravity; main.startSpeed = 0f;
+        var em = ps.emission; em.enabled = false; var shp = ps.shape; shp.enabled = false;
+        var col = ps.colorOverLifetime; col.enabled = true; var g = new Gradient();
+        g.SetKeys(new[] { new GradientColorKey(Color.white, 0f), new GradientColorKey(Color.white, 1f) },
+            new[] { new GradientAlphaKey(0f, 0f), new GradientAlphaKey(1f, 0.12f), new GradientAlphaKey(0f, 1f) });
+        col.color = new ParticleSystem.MinMaxGradient(g);
+        if (grow) { var sz = ps.sizeOverLifetime; sz.enabled = true; sz.size = new ParticleSystem.MinMaxCurve(1f, AnimationCurve.Linear(0f, 0.5f, 1f, 1.9f)); }
+        var r = go.GetComponent<ParticleSystemRenderer>(); var m = new Material(sh); m.mainTexture = tex; r.sharedMaterial = m;
+        r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off; r.receiveShadows = false;
+        ps.Play(); return ps;
     }
-    void UpdatePrompt()
+    void Emit(ParticleSystem ps, Vector3 pos, Vector3 vel, Color c, float size, float life)
     {
-        if (promptText == null)
-        {
-            promptPill = Slab("PromptPill", world, Vector2.zero, new Vector2(4.6f, 0.62f), new Color(0.02f, 0.05f, 0.1f, 0.9f), 58);
-            promptText = Label(world, Vector2.zero, "", 0.042f, new Color(0.7f, 0.95f, 1f), 59);
-        }
-        var s = Nearest((Vector2)astro.localPosition, 1.9f);
-        bool show = s != null && mode == Mode.Play;
-        promptText.gameObject.SetActive(show); promptPill.gameObject.SetActive(show);
-        if (!show) return;
-        var p = s.pos + new Vector2(0, s.pos.y > 0 ? -0.95f : 0.95f);
-        promptText.transform.localPosition = p; promptPill.transform.localPosition = p;
-        promptText.text = Hint(s.id) + "   [E]";
+        if (ps == null) return;
+        var ep = new ParticleSystem.EmitParams(); ep.position = pos; ep.velocity = vel; ep.startColor = c; ep.startSize = size; ep.startLifetime = life;
+        ps.Emit(ep, 1);
     }
-
-    // ------------------------------------------------------------------ primitives
-    void Spawn(Vector2 pos, Vector2 vel, float life, float s0, float s1, Color c0, Color c1, float grav = 0f, Sprite spr = null, int order = 40)
+    void Burst(Vector3 pos, Color col, int count, float speed, float size = 0.4f, float life = 0.9f)
     {
-        var sr = Quad("P", world, pos, new Vector2(s0, s0), c0, order, spr ?? glow);
-        parts.Add(new Particle { t = sr.transform, sr = sr, vel = vel, life = life, max = life, s0 = s0, s1 = s1, c0 = c0, c1 = c1, grav = grav });
+        for (int i = 0; i < count; i++) Emit(psGlow, pos, UnityEngine.Random.onUnitSphere * speed * UnityEngine.Random.Range(0.3f, 1f), col, size * UnityEngine.Random.Range(0.5f, 1.3f), life * UnityEngine.Random.Range(0.6f, 1f));
     }
-    void Puff(Vector2 pos)
+    void Sparks(Vector3 pos)
     {
-        Spawn(pos, new Vector2(Random.Range(-0.3f, 0.3f), 0.35f), 0.5f, 0.18f, 0.4f, new Color(0.8f, 0.9f, 1f, 0.45f), new Color(0.8f, 0.9f, 1f, 0f), 0f, circle, 17);
+        for (int i = 0; i < 14; i++) { var v = UnityEngine.Random.onUnitSphere * 4f; v.y = Mathf.Abs(v.y) + 1.5f; Emit(psSpark, pos, v, C(1f, 0.8f, 0.3f), UnityEngine.Random.Range(0.1f, 0.22f), UnityEngine.Random.Range(0.4f, 0.9f)); }
     }
-    void Burst(Vector2 pos, Color col, int count, float speed, float life = 0.8f, float grav = 0f)
+    void Smoke(Vector3 pos, Color col, float size, float life)
+    {
+        Emit(psSmoke, pos + UnityEngine.Random.insideUnitSphere * 0.3f, new Vector3(UnityEngine.Random.Range(-0.4f, 0.4f), UnityEngine.Random.Range(0.8f, 1.6f), UnityEngine.Random.Range(-0.4f, 0.4f)), col, size, life);
+    }
+    Color DustCol(float a) { return site == "mars" ? C(0.8f, 0.52f, 0.34f, a) : C(0.7f, 0.7f, 0.72f, a); }
+    void DustPuff(Vector3 pos, int count)
     {
         for (int i = 0; i < count; i++)
-        {
-            float a = Random.value * Mathf.PI * 2f, sp = speed * Random.Range(0.4f, 1f);
-            Spawn(pos, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * sp, life * Random.Range(0.6f, 1f), Random.Range(0.18f, 0.4f), 0.05f, col, new Color(col.r, col.g, col.b, 0f), grav);
-        }
+            Emit(psSmoke, pos + new Vector3(UnityEngine.Random.Range(-0.3f, 0.3f), 0.1f, UnityEngine.Random.Range(-0.3f, 0.3f)),
+                new Vector3(UnityEngine.Random.Range(-0.6f, 0.6f), UnityEngine.Random.Range(0.2f, 0.7f), UnityEngine.Random.Range(-0.6f, 0.6f)), DustCol(0.3f), UnityEngine.Random.Range(0.5f, 1.1f), UnityEngine.Random.Range(0.7f, 1.4f));
     }
-    void Sparks(Vector2 pos) { Burst(pos, new Color(1f, 0.85f, 0.35f, 1f), 14, 3.4f, 0.7f, 6f); Burst(pos, new Color(1f, 1f, 1f, 1f), 6, 2f, 0.4f, 3f); }
-    void Ripple(Vector2 pos, Color col, float size = 3f)
+    void Fireworks(Vector3 center)
     {
-        Spawn(pos, Vector2.zero, 0.9f, 0.3f, size, new Color(col.r, col.g, col.b, 0.9f), new Color(col.r, col.g, col.b, 0f), 0f, ring, 38);
+        Color[] cols = { C(1f, 0.4f, 0.5f), C(0.4f, 0.9f, 1f), C(1f, 0.9f, 0.3f), C(0.5f, 1f, 0.5f) };
+        for (int i = 0; i < 4; i++) Burst(center + new Vector3(UnityEngine.Random.Range(-14f, 14f), UnityEngine.Random.Range(10f, 20f), UnityEngine.Random.Range(-10f, 10f)), cols[i], 46, 9f, 0.7f, 1.6f);
     }
-    void FloatText(Vector2 pos, string text, Color col, float size = 0.06f)
+    void FloatText(Vector3 pos, string text, Color col, float size = 0.11f)
     {
-        var tm = Label(world, pos, text, size, col, 60);
-        floats.Add(new FloatT { t = tm.transform, tm = tm, life = 1.8f, max = 1.8f, col = col });
-    }
-    void Confetti(int count)
-    {
-        Color[] cols = { new Color(1f, 0.4f, 0.5f), new Color(0.4f, 0.9f, 1f), new Color(1f, 0.9f, 0.3f), new Color(0.5f, 1f, 0.5f), Color.white };
-        for (int i = 0; i < count; i++)
-        {
-            var c = cols[i % cols.Length];
-            Spawn(new Vector2(Random.Range(-9f, 9f), 5.6f), new Vector2(Random.Range(-1.5f, 1.5f), Random.Range(-3f, -6f)), Random.Range(2.5f, 4f),
-                Random.Range(0.12f, 0.24f), 0.1f, c, new Color(c.r, c.g, c.b, 0f), 0.3f, square, 50);
-        }
-    }
-    void Flash(Color col, float dur = 0.6f) { flashCol = col; flashT = dur; flashDur = dur; }
-    void Banner(string title, string sub, Color col) { bannerTitle.text = title; bannerSub.text = sub; bannerCol = col; bannerTitle.color = col; bannerT = 3.2f; }
-    void Shake(float a) { shakeAmt = Mathf.Max(shakeAmt, a); }
-    Vector2 RoomPos(string id) { Room r; return rooms.TryGetValue(id, out r) ? r.center : Vector2.zero; }
-    void Feedback(string roomId, string text, Color col)
-    {
-        Room r; var p = rooms.TryGetValue(roomId, out r) ? r.center : Vector2.zero;
-        Ripple(p, col, 2.6f); FloatText(p + new Vector2(0, 0.2f), text, col);
+        var tm = Label3D(world, pos, text, size, col);
+        floats.Add(new FloatT { t = tm.transform, tm = tm, life = 2.4f, max = 2.4f, col = col });
     }
 
-    // ------------------------------------------------------------------ per-frame
-    void UpdateFx()
+    void TickFx(float dt)
     {
-        float dt = Time.deltaTime;
-        for (int i = parts.Count - 1; i >= 0; i--)
-        {
-            var p = parts[i]; p.life -= dt;
-            if (p.life <= 0) { Destroy(p.t.gameObject); parts.RemoveAt(i); continue; }
-            float k = 1f - p.life / p.max;
-            p.vel.y -= p.grav * dt;
-            p.t.localPosition += (Vector3)(p.vel * dt);
-            float s = Mathf.Lerp(p.s0, p.s1, k); p.t.localScale = new Vector3(s, s, 1);
-            p.sr.color = Color.Lerp(p.c0, p.c1, k);
-        }
         for (int i = floats.Count - 1; i >= 0; i--)
         {
             var f = floats[i]; f.life -= dt;
-            if (f.life <= 0) { Destroy(f.t.gameObject); floats.RemoveAt(i); continue; }
+            if (f.life <= 0 || f.t == null) { if (f.t != null) { billboards.Remove(f.t); Destroy(f.t.gameObject); } floats.RemoveAt(i); continue; }
             float k = 1f - f.life / f.max;
-            f.t.localPosition += new Vector3(0, 0.9f * dt * (1f - k * 0.6f), 0);
-            f.t.localScale = Vector3.one * (k < 0.15f ? Mathf.Lerp(0.5f, 1.25f, k / 0.15f) : 1f);
-            f.tm.color = new Color(f.col.r, f.col.g, f.col.b, Mathf.Clamp01(f.life / (f.max * 0.45f)));
+            f.t.position += Vector3.up * dt * 1.3f * (1f - k * 0.6f);
+            f.t.localScale = f.t.localScale * (k < 0.12f ? Mathf.Lerp(0.4f, 1.2f, k / 0.12f) : 1f);
+            f.tm.color = new Color(f.col.r, f.col.g, f.col.b, Mathf.Clamp01(f.life / (f.max * 0.4f)));
         }
-        // screen flash
-        if (flashT > 0) { flashT -= dt; flashImg.color = new Color(flashCol.r, flashCol.g, flashCol.b, flashCol.a * Mathf.Clamp01(flashT / flashDur)); }
-        else if (flashImg.color.a > 0) flashImg.color = new Color(1, 1, 1, 0);
-        // banner: slides in, holds, fades
-        if (bannerT > 0)
+        if (cam == null) return;
+        Vector3 cp = cam.transform.position;
+        // dust storm: sheets of dust blown across the base
+        if (stormK > 0.02f)
         {
-            bannerT -= dt; float k = 3.2f - bannerT;
-            bannerGroup.alpha = Mathf.Clamp01(k / 0.25f) * Mathf.Clamp01(bannerT / 0.6f);
-            float sc = k < 0.35f ? Mathf.Lerp(1.5f, 1f, k / 0.35f) : 1f;
-            bannerGroup.transform.localScale = Vector3.one * sc;
-            bannerTitle.color = Color.Lerp(Color.white, bannerCol, Mathf.PingPong(Time.time * 3f, 1f) * 0.5f + 0.5f);
-        }
-        else bannerGroup.alpha = 0;
-        if (dayPop > 0 && dayText != null) { dayPop -= dt; dayText.transform.localScale = Vector3.one * (1f + Mathf.Clamp01(dayPop) * 0.35f); }
-
-        // camera: tiny parallax sway + shake
-        Vector3 sh = shakeAmt > 0.001f ? (Vector3)(Random.insideUnitCircle * shakeAmt) : Vector3.zero;
-        shakeAmt = Mathf.MoveTowards(shakeAmt, 0, dt * 1.6f);
-        var ap = (Vector2)astro.localPosition;
-        cam.transform.position = new Vector3(ap.x * 0.03f, ap.y * 0.02f, -10) + sh;
-
-        WeatherTick(dt);
-        // gauges that are nearly empty throb red
-        foreach (var g in gauges.Values)
-            if (g.low) { var c = g.fill.color; c.a = 0.55f + 0.45f * Mathf.Abs(Mathf.Sin(Time.time * 5f)); g.fill.color = c; }
-        // rooms: lights fade, flicker when the power is failing, alarm blinks when broken
-        foreach (var r in rooms.Values)
-        {
-            float target = r.targetDark;
-            if (r.noPower)
+            dustAcc += dt * 70f * stormK;
+            while (dustAcc > 1f)
             {
-                float n = Mathf.PerlinNoise(Time.time * 7f, r.center.x);
-                target = n > 0.72f ? target * 0.55f : target;
-            }
-            r.curDark = Mathf.MoveTowards(r.curDark, target, dt * 2.2f);
-            r.dark.color = new Color(0, 0, 0, r.curDark);
-            float al = r.broken ? 0.22f * (0.5f + 0.5f * Mathf.Sin(Time.time * 6f)) : 0f;
-            r.alarm.color = new Color(1f, 0.1f, 0.15f, al);
-            if (r.broken && Random.value < dt * 1.4f) Sparks(r.center + new Vector2(Random.Range(-1.2f, 1.2f), Random.Range(-0.8f, 0.8f)));
-        }
-    }
-
-    void WeatherTick(float dt)
-    {
-        Color target = new Color(0, 0, 0, 0);
-        if (st != null && !st.over)
-        {
-            var env = Sim.EnvFor(st, st.day);
-            if (env.night) target = new Color(0.04f, 0.1f, 0.4f, 0.34f);
-            if (env.dustStorm)
-            {
-                target = new Color(0.85f, 0.5f, 0.2f, 0.26f);
-                dustTimer += dt * 40f;
-                while (dustTimer > 1f)
-                {
-                    dustTimer -= 1f;
-                    Spawn(new Vector2(-10.8f, Random.Range(-5.4f, 5.4f)), new Vector2(Random.Range(9f, 14f), Random.Range(-1f, 1f)), 2.6f,
-                        Random.Range(0.2f, 0.7f), 0.1f, new Color(0.9f, 0.6f, 0.3f, 0.5f), new Color(0.9f, 0.6f, 0.3f, 0f), 0f, glow, 42);
-                }
-            }
-            if (env.solarStorm)
-            {
-                target = new Color(1f, 0.12f, 0.08f, 0.1f + 0.1f * Mathf.Abs(Mathf.Sin(Time.time * 4f)));
-                if (Time.time > nextRad)
-                {
-                    nextRad = Time.time + 0.9f;
-                    Ripple(new Vector2(Random.Range(-8f, 8f), Random.Range(-4f, 4f)), new Color(1f, 0.4f, 0.2f), 5f);
-                }
-            }
-            bool sheltering = plan != null && plan.activity == "shelter";
-            float sa = sheltering ? 0.16f + 0.08f * Mathf.Sin(Time.time * 4f) : 0f;
-            var sc = shieldBubble.color; sc.a = Mathf.MoveTowards(sc.a, sa, dt); shieldBubble.color = sc;
-        }
-        weather.color = Color.Lerp(weather.color, target, dt * 2.5f);
-    }
-
-    // ------------------------------------------------------------------ mission timeline
-    void UpdateTimeline()
-    {
-        if (st == null || tlCell == null) return;
-        var sc = GameData.Scenarios[st.site];
-        for (int i = 0; i < Sim.MAX_DAY; i++)
-        {
-            int day = i + 1;
-            tlCell[i].color = day < st.day ? new Color(0.3f, 0.85f, 1f, 0.55f) : (day == st.day ? new Color(1, 1, 1, 0.95f) : new Color(0.2f, 0.28f, 0.4f, 0.55f));
-            Color low = new Color(0, 0, 0, 0), top = low;
-            if (st.site == "moon" && day >= sc.nightStart && day <= sc.nightEnd) low = new Color(0.25f, 0.35f, 1f, 0.95f);
-            if (st.dust != null && day >= st.dust.start && day <= st.dust.end && (st.dust.start - st.day <= st.dust.alert)) low = new Color(1f, 0.62f, 0.25f, 0.95f);
-            foreach (var s in st.storms) if (s.day == day && (s.day - st.day <= s.alert)) top = new Color(1f, 0.25f, 0.2f, 1f);
-            tlLow[i].color = low; tlTop[i].color = top;
-            tlCard[i].color = GameData.Cards.Any(c => c.afterDay == day) ? new Color(1, 1, 1, 0.85f) : new Color(0, 0, 0, 0);
-        }
-    }
-
-    // ------------------------------------------------------------------ reactions to what just happened
-    void OnDayResult(DayRecord rec)
-    {
-        var hall = Vector2.zero;
-        foreach (var e in rec.events)
-        {
-            if (e.StartsWith("The lunar night")) { Banner("LUNAR NIGHT", "15 days without solar power", new Color(0.5f, 0.6f, 1f)); Flash(new Color(0.05f, 0.1f, 0.4f, 0.6f), 1.2f); Shake(0.05f); }
-            else if (e.StartsWith("Sunrise")) { Banner("SUNRISE", "The night is over. Solar power is back.", new Color(1f, 0.85f, 0.4f)); Flash(new Color(1f, 0.9f, 0.5f, 0.55f), 1.2f); Burst(hall, new Color(1f, 0.9f, 0.5f), 30, 5f, 1.2f); }
-            else if (e.StartsWith("A dust storm begins")) { Banner("DUST STORM", "Solar power drops to 15%", new Color(1f, 0.65f, 0.3f)); Flash(new Color(0.9f, 0.55f, 0.2f, 0.45f), 0.9f); Shake(0.08f); }
-            else if (e.StartsWith("The dust storm is over")) { Banner("SKY CLEARING", "The dust storm is over", new Color(0.7f, 0.95f, 1f)); Flash(new Color(0.8f, 0.95f, 1f, 0.35f), 0.8f); }
-            else if (e.StartsWith("A solar storm"))
-            {
-                if (rec.sheltered) { Banner("STORM ENDURED", "The crew sheltered. Dose cut to one tenth.", new Color(0.4f, 0.85f, 1f)); Flash(new Color(0.3f, 0.7f, 1f, 0.35f), 0.8f); }
-                else { Banner("SOLAR STORM", "Radiation surge! Sheltering would have cut it.", new Color(1f, 0.35f, 0.3f)); Flash(new Color(1f, 0.1f, 0.05f, 0.6f), 1f); Shake(0.22f); }
-                FloatText((Vector2)astro.localPosition + new Vector2(0, 1.3f), "+" + Fmt(rec.doseToday) + " mSv", new Color(1f, 0.55f, 0.3f), 0.07f);
+                dustAcc -= 1f;
+                Vector3 p = cp + new Vector3(UnityEngine.Random.Range(-45f, 20f), 0, UnityEngine.Random.Range(-40f, 40f)); p.y = H(p.x, p.z) + UnityEngine.Random.Range(0.3f, 9f);
+                Emit(psSmoke, p, new Vector3(UnityEngine.Random.Range(10f, 17f), UnityEngine.Random.Range(-0.3f, 0.6f), UnityEngine.Random.Range(-2f, 3f)), DustCol(0.28f), UnityEngine.Random.Range(3f, 8f), UnityEngine.Random.Range(1.8f, 3f));
             }
         }
-        foreach (var s in rec.shut)
+        else if (site == "mars" && mode != Mode.Title)
         {
-            string rid = s == "habitat" ? "" : s;
-            var pos = rid == "" ? hall : RoomPos(rid);
-            Sparks(pos); FloatText(pos + new Vector2(0, 0.3f), "POWER OUT", new Color(1f, 0.45f, 0.3f));
+            moteAcc += dt * 3f;
+            while (moteAcc > 1f) { moteAcc -= 1f; Vector3 p = cp + UnityEngine.Random.insideUnitSphere * 22f; p.y = Mathf.Max(p.y, H(p.x, p.z) + 0.3f); Emit(psSmoke, p, new Vector3(1.2f, 0.1f, 0.3f), DustCol(0.07f), UnityEngine.Random.Range(1.5f, 3f), 3f); }
         }
-        if (rec.shut.Count > 0) { Shake(0.12f); Flash(new Color(1f, 0.3f, 0.1f, 0.25f), 0.5f); if (rec.shut.Contains("habitat")) Banner("HABITAT CORE DOWN", "No heat, no water recycling", new Color(1f, 0.4f, 0.3f)); }
-        if (rec.shut.Count > 0 && st.battery <= 0.001) FloatText(hall + new Vector2(0, 1.4f), "BATTERY EMPTY", new Color(1f, 0.3f, 0.3f), 0.08f);
-        if (rec.faultNew != null) { Sparks(RoomPos(rec.faultNew)); Burst(RoomPos(rec.faultNew), new Color(1f, 0.3f, 0.2f), 20, 4f); Banner("MODULE BROKEN", "The " + rec.faultNew + " needs a repair", new Color(1f, 0.55f, 0.25f)); Flash(new Color(1f, 0.2f, 0.1f, 0.35f), 0.6f); Shake(0.15f); }
-        if (rec.emergencyDamage != null) { Sparks(RoomPos(rec.emergencyDamage)); FloatText(RoomPos(rec.emergencyDamage), "BROKE IN EMERGENCY", new Color(1f, 0.5f, 0.3f)); }
-        if (rec.repaired != null) { Burst(RoomPos(rec.repaired), new Color(0.4f, 1f, 0.6f), 26, 4f); Ripple(RoomPos(rec.repaired), new Color(0.4f, 1f, 0.6f), 4f); FloatText(RoomPos(rec.repaired), "REPAIRED", new Color(0.4f, 1f, 0.6f), 0.07f); }
-        if (rec.harvest > 0) { var p = RoomPos("greenhouse"); Burst(p, new Color(0.4f, 1f, 0.5f), 30, 4f, 1.1f); FloatText(p + new Vector2(0, 0.4f), "+" + Fmt(rec.harvest) + " kg FOOD", new Color(0.55f, 1f, 0.6f), 0.07f); Banner("HARVEST", "The greenhouse crop is ready", new Color(0.5f, 1f, 0.6f)); }
-        if (rec.science > 0) { var p = RoomPos("lab"); Burst(p, new Color(0.7f, 0.55f, 1f), 10, 2.5f); FloatText(p + new Vector2(0, 0.4f), "+" + Fmt(rec.science) + " SCIENCE", new Color(0.8f, 0.7f, 1f)); }
-        foreach (var a in rec.activated)
+        // solar storm: glints of radiation and Geiger ticks
+        if (solarK > 0.02f)
         {
-            var p = (a == "greenhouse" || a == "drill") ? RoomPos(a) : hall;
-            Ripple(p, new Color(0.4f, 0.9f, 1f), 4f); Burst(p, new Color(0.5f, 0.95f, 1f), 18, 3.5f);
-            FloatText(p + new Vector2(0, 0.5f), a.ToUpper() + " ONLINE", new Color(0.55f, 0.95f, 1f), 0.065f);
+            radAcc += dt * 45f * solarK;
+            while (radAcc > 1f)
+            {
+                radAcc -= 1f; Vector3 p = player.pos + new Vector3(UnityEngine.Random.Range(-22f, 22f), UnityEngine.Random.Range(0.3f, 12f), UnityEngine.Random.Range(-22f, 22f));
+                Emit(psGlow, p, -sunDir * UnityEngine.Random.Range(14f, 26f), UnityEngine.Random.value < 0.5f ? C(1f, 0.3f, 0.25f) : C(0.9f, 0.4f, 1f), UnityEngine.Random.Range(0.12f, 0.3f), 0.5f);
+            }
+            geigerT -= dt; if (geigerT <= 0) { geigerT = UnityEngine.Random.Range(0.03f, 0.22f); Sfx("tick", 0.5f); }
         }
-        if (rec.builtToday.Count > 0) { var p = RoomPos("build"); Burst(p, new Color(1f, 0.88f, 0.3f), 14, 3f); FloatText(p + new Vector2(0, 0.4f), "BUILDING " + rec.builtToday.Count, new Color(1f, 0.9f, 0.4f)); }
-        if (rec.emergency) { var p = RoomPos("airlock"); Ripple(p, new Color(0.4f, 0.8f, 1f), 5f); Burst(p, new Color(0.4f, 0.8f, 1f), 24, 4f); FloatText(p + new Vector2(0, 0.4f), "+40 L WATER", new Color(0.5f, 0.85f, 1f), 0.07f); }
-        if (rec.cleaned) { Burst(hall, new Color(1f, 1f, 0.8f), 24, 6f); FloatText(hall + new Vector2(0, 0.6f), "PANELS CLEANED", new Color(1f, 0.95f, 0.7f)); }
-        if (rec.o2Short) { Banner("OXYGEN DEPLETED", "The crew is losing health fast", new Color(1f, 0.3f, 0.3f)); Flash(new Color(1f, 0.1f, 0.1f, 0.5f), 1f); Shake(0.2f); }
-        else if (rec.waterEmpty) { Banner("NO WATER", "The tank is empty", new Color(0.4f, 0.7f, 1f)); Flash(new Color(0.2f, 0.4f, 1f, 0.35f), 0.8f); }
-        else if (rec.foodEmpty) { Banner("NO FOOD", "The store is empty", new Color(1f, 0.7f, 0.3f)); Flash(new Color(1f, 0.6f, 0.1f, 0.3f), 0.8f); }
-        if (st.over)
-        {
-            if (st.ending.type == "success") { Banner("MISSION COMPLETE", st.ending.stars + " of 3 stars", new Color(0.5f, 1f, 0.7f)); Confetti(160); Flash(new Color(0.6f, 1f, 0.8f, 0.5f), 1.2f); }
-            else { Banner(st.ending.reason == "dose" ? "EMERGENCY EVACUATION" : "MEDICAL EVACUATION", "Day " + st.ending.day, new Color(1f, 0.35f, 0.3f)); Flash(new Color(1f, 0.05f, 0.05f, 0.6f), 1.5f); Shake(0.3f); }
-        }
-        dayPop = 0.6f;
+        if (windSrc != null) windSrc.volume = Mathf.MoveTowards(windSrc.volume, (stormK * 0.55f + (site == "mars" && mode != Mode.Title ? 0.05f : 0f)) * masterVol, dt * 0.5f);
+        if (rocketSrc != null) rocketSrc.volume = Mathf.MoveTowards(rocketSrc.volume, rocketOn ? 0.6f * masterVol : 0f, dt * 1.5f);
     }
 
     void ClearFx()
     {
-        foreach (var p in parts) if (p.t) Destroy(p.t.gameObject);
-        foreach (var f in floats) if (f.t) Destroy(f.t.gameObject);
-        parts.Clear(); floats.Clear(); bannerT = 0; flashT = 0; shakeAmt = 0;
-        foreach (var r in rooms.Values) { r.curDark = 0; r.targetDark = 0; r.broken = false; r.noPower = false; }
+        foreach (var f in floats) if (f.t != null) Destroy(f.t.gameObject);
+        floats.Clear(); stormK = 0; solarK = 0; shakeAmt = 0; rocketOn = false;
+        if (psGlow != null) { psGlow.Clear(); psSpark.Clear(); psSmoke.Clear(); }
     }
+
+    // ------------------------------------------------------------------ generated sound
+    AudioSource sfxSrc, windSrc, rocketSrc; readonly Dictionary<string, AudioClip> clips = new Dictionary<string, AudioClip>();
+    float masterVol = 1f; bool rocketOn;
+
+    void InitAudio()
+    {
+        try
+        {
+            sfxSrc = gameObject.AddComponent<AudioSource>(); sfxSrc.playOnAwake = false; sfxSrc.spatialBlend = 0f;
+            const float TAU = Mathf.PI * 2f;
+            Clip("click", 0.05f, t => Mathf.Sin(TAU * 900f * t) * Mathf.Exp(-t * 60f));
+            Clip("on", 0.14f, t => Mathf.Sin(TAU * (500f + 2800f * t) * t) * Mathf.Exp(-t * 14f));
+            Clip("off", 0.16f, t => Mathf.Sin(TAU * (700f - 1300f * t) * t) * Mathf.Exp(-t * 12f));
+            Clip("warn", 0.45f, t => (t % 0.22f < 0.12f ? Mathf.Sin(TAU * 620f * t) : 0f) * 0.8f);
+            Clip("alarm", 1.0f, t => Mathf.Sign(Mathf.Sin(TAU * (t % 0.5f < 0.25f ? 520f : 390f) * t)) * 0.35f * (1f - t * 0.4f));
+            Clip("down", 0.8f, t => Mathf.Sin(TAU * (420f - 240f * t) * t) * (1f - t / 0.8f) * 0.8f);
+            Clip("good", 0.5f, t => Mathf.Sin(TAU * (t < 0.15f ? 660f : (t < 0.3f ? 880f : 1100f)) * t) * Mathf.Exp(-(t % 0.15f) * 9f) * 0.8f);
+            Clip("win", 1.4f, t => { float[] n = { 523f, 659f, 784f, 1047f, 1319f }; int i = Mathf.Min(4, (int)(t / 0.22f)); return (Mathf.Sin(TAU * n[i] * t) + 0.4f * Mathf.Sin(TAU * n[i] * 2f * t)) * Mathf.Exp(-(t - i * 0.22f) * (i == 4 ? 3f : 7f)) * 0.6f; });
+            var rnd = new System.Random(3);
+            Clip("tick", 0.012f, t => (float)(rnd.NextDouble() * 2 - 1) * (1f - t / 0.012f));
+            float last = 0f; Clip("thud", 0.35f, t => { last = (last + 0.08f * (float)(rnd.NextDouble() * 2 - 1)) / 1.02f; return last * 7f * Mathf.Exp(-t * 9f) + Mathf.Sin(TAU * 90f * t) * Mathf.Exp(-t * 14f) * 0.7f; });
+            float lw = 0f; var wind = Clip("wind", 4f, t => { lw = (lw + 0.03f * (float)(rnd.NextDouble() * 2 - 1)) / 1.004f; return lw * 5f * (0.6f + 0.4f * Mathf.Sin(TAU * 0.5f * t)); });
+            float lr = 0f; var rocket = Clip("rocket", 2f, t => { lr = (lr + 0.12f * (float)(rnd.NextDouble() * 2 - 1)) / 1.03f; return Mathf.Clamp(lr * 6f, -1f, 1f); });
+            windSrc = Loop(wind); rocketSrc = Loop(rocket);
+        }
+        catch (Exception e) { Debug.LogWarning("Audio init failed: " + e.Message); }
+    }
+    AudioClip Clip(string name, float dur, Func<float, float> f)
+    {
+        int n = Mathf.Max(8, (int)(dur * 44100)); var data = new float[n];
+        for (int i = 0; i < n; i++) data[i] = Mathf.Clamp(f(i / 44100f), -1f, 1f);
+        int fade = Mathf.Min(400, n / 4); for (int i = 0; i < fade; i++) { data[i] *= i / (float)fade; data[n - 1 - i] *= i / (float)fade; }
+        var c = AudioClip.Create(name, n, 1, 44100, false); c.SetData(data, 0); clips[name] = c; return c;
+    }
+    AudioSource Loop(AudioClip c)
+    {
+        var s = gameObject.AddComponent<AudioSource>(); s.clip = c; s.loop = true; s.volume = 0f; s.spatialBlend = 0f; s.playOnAwake = false; s.Play(); return s;
+    }
+    void Sfx(string name, float vol = 1f)
+    {
+        AudioClip c; if (sfxSrc != null && clips.TryGetValue(name, out c)) sfxSrc.PlayOneShot(c, vol * 0.6f * masterVol);
+    }
+
+    // ------------------------------------------------------------------ what just happened today
+    Vector3 ModTop(Mod m) { return m.pos + Vector3.up * (m.height + 0.6f); }
+    Mod SysMod(string sys)
+    {
+        if (sys == "oxygen") return oxyMod; if (sys == "lab") return labMod; if (sys == "habitat") return habMod;
+        var s = slots.FirstOrDefault(x => x.type == sys && x.state == 3 && x.mod != null); return s != null ? s.mod : habMod;
+    }
+
+    void OnDayResult(DayRecord rec)
+    {
+        foreach (var e in rec.events)
+        {
+            if (e.StartsWith("The lunar night")) { BannerQ("LUNAR NIGHT", "15 days without sunlight. The arrays make no power.", C(0.55f, 0.65f, 1f)); Sfx("down"); PipSay("Night has fallen. It lasts about two Earth weeks. Only stored power and the reactor work now.", 1); }
+            else if (e.StartsWith("Sunrise")) { BannerQ("SUNRISE", "The lunar night is over. Solar power is back.", C(1f, 0.87f, 0.45f)); Flash(C(1f, 0.9f, 0.5f, 0.4f), 1.2f); Sfx("good"); }
+            else if (e.StartsWith("A dust storm begins")) { BannerQ("DUST STORM", "Solar arrays drop to " + Mathf.RoundToInt((float)V("dust_storm_mult") * 100) + "% for 6 sols", C(1f, 0.68f, 0.35f)); Sfx("warn"); Shake(0.25f); PipSay("Dust storm! On Mars the wind is too thin to knock things over. The danger is the dust blocking the Sun.", 1); }
+            else if (e.StartsWith("The dust storm is over")) { BannerQ("SKY CLEARING", "The dust storm is over", C(0.7f, 0.95f, 1f)); Sfx("good"); }
+            else if (e.StartsWith("A solar storm"))
+            {
+                if (rec.sheltered) { BannerQ("STORM ENDURED", "The crew sheltered. Storm dose cut to one tenth.", C(0.45f, 0.88f, 1f)); Sfx("good"); }
+                else { BannerQ("SOLAR STORM", "Radiation surge. Sheltering would have cut it to one tenth.", C(1f, 0.38f, 0.32f)); Flash(C(1f, 0.1f, 0.05f, 0.5f), 1f); Shake(0.5f); Sfx("alarm"); }
+                FloatText(player.pos + Vector3.up * 2.8f, "+" + Fmt(rec.doseToday) + " mSv", C(1f, 0.55f, 0.3f), 0.13f);
+            }
+        }
+        foreach (var s in rec.shut.Distinct()) { var m = SysMod(s); Sparks(ModTop(m)); FloatText(ModTop(m), "POWER OUT", C(1f, 0.45f, 0.3f)); }
+        if (rec.shut.Count > 0)
+        {
+            Sfx("down"); Shake(0.2f);
+            if (rec.shut.Contains("habitat")) BannerQ("HABITAT CORE DOWN", "No heat and no water recycling tonight", C(1f, 0.42f, 0.32f));
+            else BannerQ("POWER SHORTAGE", "Switched off: " + string.Join(", ", rec.shut.Distinct()), C(1f, 0.6f, 0.3f));
+        }
+        if (rec.faultNew != null) { var m = SysMod(rec.faultNew); Sparks(ModTop(m)); Burst(ModTop(m), C(1f, 0.3f, 0.2f), 24, 6f); BannerQ("MODULE BROKEN", "The " + SysName(rec.faultNew) + " needs a repair (Supply Depot, 1 crate)", C(1f, 0.58f, 0.28f)); Sfx("alarm"); Shake(0.3f); }
+        if (rec.emergencyDamage != null) { var m = SysMod(rec.emergencyDamage); Sparks(ModTop(m)); FloatText(ModTop(m), "BROKE IN THE EMERGENCY", C(1f, 0.5f, 0.3f)); }
+        if (rec.repaired != null) { var m = SysMod(rec.repaired); Burst(ModTop(m), C(0.4f, 1f, 0.6f), 30, 6f); FloatText(ModTop(m), "REPAIRED", C(0.45f, 1f, 0.6f), 0.13f); Sfx("good"); }
+        if (rec.harvest > 0) { var m = SysMod("greenhouse"); Burst(ModTop(m), C(0.4f, 1f, 0.5f), 36, 6f, 0.5f, 1.2f); FloatText(ModTop(m), "+" + Fmt(rec.harvest) + " kg FOOD", C(0.55f, 1f, 0.6f), 0.13f); BannerQ("HARVEST", "The greenhouse crop is ready", C(0.55f, 1f, 0.6f)); Sfx("good"); }
+        if (rec.science > 0) { Burst(ModTop(labMod), C(0.75f, 0.6f, 1f), 12, 4f); FloatText(ModTop(labMod), "+" + Fmt(rec.science) + " SCIENCE", C(0.82f, 0.72f, 1f)); }
+        foreach (var a in rec.activated) { Sfx("thud", 0.8f); }
+        if (rec.activated.Count > 0) FloatText(habMod.pos + Vector3.up * 7.2f, "ONLINE: " + string.Join(", ", rec.activated.Select(x => Sim.GetTypeInfo(x).name)), C(0.6f, 0.95f, 1f), 0.09f);
+        if (rec.emergency) { Burst(ModTop(landerMod), C(0.4f, 0.8f, 1f), 30, 6f); FloatText(ModTop(landerMod), "+" + Fmt(V("emerg_water")) + " L WATER", C(0.5f, 0.85f, 1f), 0.13f); }
+        if (rec.cleaned) { Burst(solarMod.pos + Vector3.up * 3f, C(1f, 1f, 0.85f), 30, 8f); FloatText(solarMod.pos + Vector3.up * 5f, "PANELS CLEANED", C(1f, 0.96f, 0.75f)); }
+        if (rec.o2Short) { BannerQ("OXYGEN DEPLETED", "The crew is losing health fast", C(1f, 0.32f, 0.32f)); Flash(C(1f, 0.1f, 0.1f, 0.45f), 1f); Sfx("alarm"); }
+        else if (rec.waterEmpty) { BannerQ("NO WATER", "The tank is empty", C(0.45f, 0.72f, 1f)); Sfx("warn"); }
+        else if (rec.foodEmpty) { BannerQ("NO FOOD", "The store is empty", C(1f, 0.72f, 0.32f)); Sfx("warn"); }
+    }
+    static string SysName(string s) { return s == "oxygen" ? "oxygen plant" : s == "lab" ? "science lab" : s == "drill" ? "ice drill" : s == "greenhouse" ? "greenhouse" : s; }
 }

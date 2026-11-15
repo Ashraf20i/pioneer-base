@@ -1,7 +1,8 @@
-// Pioneer Base - PioneerGame.cs
-// Top-down base view. Builds the whole scene at runtime (rooms, astronaut, stations, UI) so the
-// scene file only needs a camera and this component. Game rules live in Assets/Scripts/Core.
+// Pioneer Base 3D - PioneerGame.cs
+// Game flow, input and menus. The whole scene is generated at runtime, so the scene file only
+// needs a camera and this component. Game rules live in Assets/Scripts/Core and are not changed here.
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -12,194 +13,183 @@ using PioneerBase;
 
 public partial class PioneerGame : MonoBehaviour
 {
-    enum Mode { Title, Play, Modal }
+    enum Mode { Title, Play, Modal, Cine }
     Mode mode = Mode.Title;
 
     GameState st; Plan plan; PreviewResult pv;
-    string site = "moon"; int seed = 1;
-    Camera cam; Font font; Sprite square, circle;
-    Transform world;
+    string site = "mars"; int seed = 1;
+    Camera cam; Font font; Transform world;
+    bool shots, lapseActive, tipBuild, tipWarned;
 
-    class Room
-    {
-        public string id, name, system; public Vector2 center; public bool top; public SpriteRenderer dark, alarm; public TextMesh label;
-        public Color accent; public Transform doorL, doorR; public Vector2 doorPos; public float doorOpen, targetDark, curDark; public bool broken, noPower;
-    }
-    class Station { public string id, roomId; public Vector2 pos; }
-    readonly Dictionary<string, Room> rooms = new Dictionary<string, Room>();
-    readonly List<Station> stations = new List<Station>();
-    SpriteRenderer hallDark;
-    Transform astro, rig, legL, legR;
-    Sprite slice, ring;
-    float walkPhase, facing = 1; bool moving;
-    readonly List<Transform> pulses = new List<Transform>();
-    readonly List<Vector2> path = new List<Vector2>();
-    string pendingStation, armedStation;
-
-    // UI
-    Text dayText, alertText, infoText, toastText, crateText;
-    float toastUntil;
-    class Gauge { public Text label; public Image fill; public bool low; }
-    readonly Dictionary<string, Gauge> gauges = new Dictionary<string, Gauge>();
-    GameObject modalRoot; Text modalTitle, modalBody; RectTransform modalButtons;
-    Button runButton;
-
-    static readonly Color PanelCol = new Color(0.06f, 0.09f, 0.16f, 0.95f);
+    static double V(string id) { return GameData.V(id); }
+    static string Fmt(double x) { return (Math.Round(x * 10) / 10).ToString("0.#", System.Globalization.CultureInfo.InvariantCulture); }
+    string DayWord { get { return site == "mars" ? "SOL" : "DAY"; } }
+    string dayWord { get { return site == "mars" ? "sol" : "day"; } }
 
     // ------------------------------------------------------------------ setup
     void Start()
     {
+        Application.targetFrameRate = 60;
         font = Resources.GetBuiltinResource<Font>("Arial.ttf");
-        MakeSprites();
+        try { shots = Environment.GetCommandLineArgs().Any(a => a == "-pbshots"); } catch (Exception) { shots = false; }
         cam = Camera.main;
-        cam.orthographic = true; cam.orthographicSize = 5.4f;
-        cam.transform.position = new Vector3(0, 0, -10);
-        cam.backgroundColor = new Color(0.04f, 0.05f, 0.09f);
-        cam.clearFlags = CameraClearFlags.SolidColor;
-        cam.rect = new Rect(0, 60f / 720f, 1, 1 - 160f / 720f);
+        if (cam == null) { var cg = new GameObject("Main Camera"); cg.tag = "MainCamera"; cam = cg.AddComponent<Camera>(); }
+        cam.orthographic = false; cam.fieldOfView = 55f; cam.nearClipPlane = 0.3f; cam.farClipPlane = 2600f; cam.rect = new Rect(0, 0, 1, 1);
+        cam.clearFlags = CameraClearFlags.SolidColor; cam.backgroundColor = Color.black;
+        if (FindObjectOfType<AudioListener>() == null) cam.gameObject.AddComponent<AudioListener>();
+        QualitySettings.shadows = ShadowQuality.All; QualitySettings.shadowDistance = 95f; QualitySettings.shadowResolution = ShadowResolution.High;
+        QualitySettings.shadowCascades = 1; QualitySettings.pixelLightCount = 4; QualitySettings.antiAliasing = 2;
         world = new GameObject("World").transform;
-        BuildWorld();
-        BuildUI();
-        if (FindObjectOfType<EventSystem>() == null)
-            new GameObject("EventSystem", typeof(EventSystem), typeof(StandaloneInputModule));
+        InitMaterials(); InitFx(); InitAudio(); BuildSky(); BuildUI();
+        if (FindObjectOfType<EventSystem>() == null) new GameObject("EventSystem", typeof(EventSystem), typeof(StandaloneInputModule));
+        st = Sim.NewGame(site, 7); plan = Sim.DefaultPlan(st);
+        BuildSite(site); Refresh();
         ShowTitle();
+        if (shots) StartCoroutine(ShotRun());
     }
 
-    // ------------------------------------------------------------------ UI helpers
-    RectTransform Panel(string name, Transform parent, Vector2 aMin, Vector2 aMax, Color col)
+    void Update()
     {
-        var go = new GameObject(name, typeof(RectTransform), typeof(Image)); go.transform.SetParent(parent, false);
-        var rt = (RectTransform)go.transform; rt.anchorMin = aMin; rt.anchorMax = aMax; rt.offsetMin = rt.offsetMax = Vector2.zero;
-        go.GetComponent<Image>().color = col; return rt;
-    }
-    Text TextUI(string name, Transform parent, Vector2 aMin, Vector2 aMax, int size, TextAnchor anchor, Color col)
-    {
-        var go = new GameObject(name, typeof(RectTransform), typeof(Text)); go.transform.SetParent(parent, false);
-        var rt = (RectTransform)go.transform; rt.anchorMin = aMin; rt.anchorMax = aMax; rt.offsetMin = new Vector2(8, 2); rt.offsetMax = new Vector2(-8, -2);
-        var t = go.GetComponent<Text>(); t.font = font; t.fontSize = size; t.alignment = anchor; t.color = col;
-        t.horizontalOverflow = HorizontalWrapMode.Wrap; t.verticalOverflow = VerticalWrapMode.Overflow; t.raycastTarget = false;
-        return t;
-    }
-    Button ButtonUI(string name, Transform parent, string label, Action onClick, int fontSize = 20)
-    {
-        var go = new GameObject(name, typeof(RectTransform), typeof(Image), typeof(Button)); go.transform.SetParent(parent, false);
-        var img = go.GetComponent<Image>(); img.color = new Color(0.16f, 0.36f, 0.62f);
-        var b = go.GetComponent<Button>(); b.targetGraphic = img;
-        var cs = b.colors; cs.disabledColor = new Color(0.3f, 0.3f, 0.35f, 0.7f); b.colors = cs;
-        b.onClick.AddListener(() => onClick());
-        var t = TextUI("Text", go.transform, Vector2.zero, Vector2.one, fontSize, TextAnchor.MiddleCenter, Color.white); t.text = label;
-        return b;
+        float dt = Mathf.Min(Time.deltaTime, 0.05f);
+        if (mode == Mode.Play) HandleInput(dt);
+        TickActors(dt); TickWorld(dt); TickCamera(dt); TickSky(dt); TickFx(dt); TickUI(dt);
     }
 
-    void BuildUI()
-    {
-        var cgo = new GameObject("Canvas", typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));
-        var canvas = cgo.GetComponent<Canvas>(); canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-        var cs = cgo.GetComponent<CanvasScaler>(); cs.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-        cs.referenceResolution = new Vector2(1280, 720); cs.matchWidthOrHeight = 0.5f;
-        var root = cgo.transform;
+    // ------------------------------------------------------------------ input
+    Vector3 mDown, mLast; bool mTrack, mDrag; Vector3? walkTarget; Mod walkMod; float walkTimer;
+    static bool K(KeyCode k) { return Input.GetKey(k); }
 
-        // top HUD (100 px of 720)
-        var top = Panel("TopHud", root, new Vector2(0, 1 - 100f / 720f), Vector2.one, PanelCol);
-        dayText = TextUI("Day", top, new Vector2(0, 0.55f), new Vector2(0.28f, 1), 26, TextAnchor.MiddleLeft, Color.white);
-        crateText = TextUI("Crates", top, new Vector2(0.28f, 0.55f), new Vector2(0.42f, 1), 20, TextAnchor.MiddleLeft, new Color(1f, 0.85f, 0.4f));
-        alertText = TextUI("Alerts", top, new Vector2(0.42f, 0.55f), Vector2.one, 18, TextAnchor.MiddleLeft, new Color(1f, 0.7f, 0.35f));
-        string[] gk = { "o2", "water", "food", "battery", "health", "dose" };
-        for (int i = 0; i < gk.Length; i++)
+    void HandleInput(float dt)
+    {
+        float f = 0, r = 0;
+        if (K(KeyCode.W) || K(KeyCode.Z) || K(KeyCode.UpArrow)) f += 1; if (K(KeyCode.S) || K(KeyCode.DownArrow)) f -= 1;
+        if (K(KeyCode.D) || K(KeyCode.RightArrow)) r += 1; if (K(KeyCode.A) || K(KeyCode.Q) || K(KeyCode.LeftArrow)) r -= 1;
+        if (f != 0 || r != 0)
         {
-            float x0 = i / 6f + 0.005f, x1 = (i + 1) / 6f - 0.005f;
-            var g = new Gauge();
-            g.label = TextUI("GL" + gk[i], top, new Vector2(x0, 0.28f), new Vector2(x1, 0.55f), 16, TextAnchor.MiddleLeft, Color.white);
-            var bg = Panel("GB" + gk[i], top, new Vector2(x0 + 0.005f, 0.08f), new Vector2(x1 - 0.005f, 0.27f), new Color(1, 1, 1, 0.15f));
-            var f = Panel("GF" + gk[i], bg, Vector2.zero, Vector2.one, new Color(0.3f, 0.8f, 0.45f));
-            f.pivot = new Vector2(0, 0.5f);
-            g.fill = f.GetComponent<Image>(); gauges[gk[i]] = g;
+            walkTarget = null; walkMod = null; var q = Quaternion.Euler(0, camYaw, 0);
+            StepPlayer(q * Vector3.forward * f + q * Vector3.right * r, dt);
         }
-
-        // bottom bar (60 px)
-        var bot = Panel("BottomBar", root, Vector2.zero, new Vector2(1, 60f / 720f), PanelCol);
-        infoText = TextUI("Info", bot, Vector2.zero, new Vector2(0.78f, 1), 18, TextAnchor.MiddleLeft, Color.white);
-        runButton = ButtonUI("RunDay", bot, "RUN DAY", RunDay, 24);
-        var rrt = (RectTransform)runButton.transform; rrt.anchorMin = new Vector2(0.80f, 0.1f); rrt.anchorMax = new Vector2(0.99f, 0.9f);
-        rrt.offsetMin = rrt.offsetMax = Vector2.zero;
-        runButton.GetComponent<Image>().color = new Color(0.15f, 0.6f, 0.35f);
-
-        toastText = TextUI("Toast", root, new Vector2(0.2f, 0.74f), new Vector2(0.8f, 0.8f), 22, TextAnchor.MiddleCenter, new Color(1, 1, 0.7f));
-        var shadow = toastText.gameObject.AddComponent<Shadow>(); shadow.effectColor = Color.black;
-
-        // modal
-        var overlay = Panel("Modal", root, Vector2.zero, Vector2.one, new Color(0, 0, 0, 0.55f));
-        modalRoot = overlay.gameObject;
-        var box = Panel("Box", overlay, new Vector2(0.14f, 0.1f), new Vector2(0.86f, 0.92f), new Color(0.08f, 0.11f, 0.2f));
-        modalTitle = TextUI("Title", box, new Vector2(0, 0.88f), Vector2.one, 30, TextAnchor.MiddleCenter, new Color(0.6f, 0.85f, 1f));
-        modalBody = TextUI("Body", box, new Vector2(0.03f, 0.34f), new Vector2(0.97f, 0.88f), 20, TextAnchor.UpperLeft, Color.white);
-        modalButtons = Panel("Buttons", box, new Vector2(0.03f, 0.02f), new Vector2(0.97f, 0.34f), new Color(0, 0, 0, 0));
-        var grid = modalButtons.gameObject.AddComponent<GridLayoutGroup>();
-        grid.cellSize = new Vector2(250, 44); grid.spacing = new Vector2(10, 8); grid.childAlignment = TextAnchor.UpperCenter;
-        modalRoot.SetActive(false);
-    }
-
-    class Btn { public string label; public Action act; public bool enabled = true; public bool close = true; }
-
-    void ShowModal(string title, string body, List<Btn> btns, int bodySize = 20)
-    {
-        mode = Mode.Modal;
-        modalRoot.SetActive(true);
-        modalTitle.text = title; modalBody.text = body; modalBody.fontSize = bodySize;
-        foreach (Transform c in modalButtons) Destroy(c.gameObject);
-        foreach (var b in btns)
+        else if (walkTarget.HasValue)
         {
-            var bb = b;
-            var ui = ButtonUI("B", modalButtons, b.label, () => { if (bb.close) CloseModal(); bb.act?.Invoke(); }, 18);
-            ui.interactable = b.enabled;
+            Vector3 to = walkTarget.Value - player.pos; to.y = 0; float d = to.magnitude; walkTimer -= dt;
+            bool arrived = d < 0.5f || walkTimer < 0;
+            if (walkMod != null && Flat(player.pos, walkMod.pos) < walkMod.radius + 2.4f) arrived = true;
+            if (arrived) { var m = walkMod; walkTarget = null; walkMod = null; if (m != null) Interact(m.station); }
+            else StepPlayer(to / d, dt);
         }
+        if (Input.GetKeyDown(KeyCode.E) || Input.GetKeyDown(KeyCode.Space) || Input.GetKeyDown(KeyCode.Return))
+        {
+            var m = NearMod(3.4f); if (m != null) Interact(m.station);
+        }
+        if (Input.GetMouseButtonDown(0)) { mTrack = !(EventSystem.current != null && EventSystem.current.IsPointerOverGameObject()); mDown = mLast = Input.mousePosition; mDrag = false; }
+        if (Input.GetMouseButton(0) && mTrack)
+        {
+            Vector3 d = Input.mousePosition - mLast; mLast = Input.mousePosition;
+            if (!mDrag && (Input.mousePosition - mDown).magnitude > 12f) mDrag = true;
+            if (mDrag) { camYaw += d.x * 0.3f; camPitch = Mathf.Clamp(camPitch - d.y * 0.2f, 4f, 72f); }
+        }
+        if (Input.GetMouseButtonUp(0) && mTrack) { mTrack = false; if (!mDrag) Click(Input.mousePosition); }
+        if (Input.GetMouseButton(1)) { camYaw += Input.GetAxis("Mouse X") * 4f; camPitch = Mathf.Clamp(camPitch - Input.GetAxis("Mouse Y") * 3f, 4f, 72f); }
+        camDist = Mathf.Clamp(camDist - Input.mouseScrollDelta.y * 1.3f, 5f, 36f);
     }
-    void CloseModal() { modalRoot.SetActive(false); if (mode == Mode.Modal) mode = Mode.Play; }
+    static float Flat(Vector3 a, Vector3 b) { float dx = a.x - b.x, dz = a.z - b.z; return Mathf.Sqrt(dx * dx + dz * dz); }
+
+    void Click(Vector3 screen)
+    {
+        RaycastHit hit;
+        if (!Physics.Raycast(cam.ScreenPointToRay(screen), out hit, 600f)) return;
+        Mod m;
+        if (modByCol.TryGetValue(hit.collider, out m)) { WalkTo(m); return; }
+        Vector3 p = hit.point; float rr = Mathf.Sqrt(p.x * p.x + p.z * p.z); if (rr > 66f) { p.x *= 66f / rr; p.z *= 66f / rr; }
+        walkTarget = p; walkMod = null; walkTimer = 12f; Burst(Ground(p) + Vector3.up * 0.2f, C(0.4f, 0.9f, 1f), 6, 1.5f, 0.3f, 0.5f);
+    }
+    void WalkTo(Mod m) { walkTarget = m.ipos; walkMod = m; walkTimer = 14f; }
+
+    Mod NearMod(float range)
+    {
+        Mod best = null; float bd = 1e9f;
+        foreach (var m in mods)
+        {
+            if (!m.root.gameObject.activeInHierarchy) continue;
+            float d = Flat(player.pos, m.pos) - m.radius; if (d < range && d < bd) { bd = d; best = m; }
+        }
+        return best;
+    }
 
     // ------------------------------------------------------------------ flow
     void ShowTitle()
     {
         mode = Mode.Title;
         ShowModal("PIONEER BASE",
-            "Keep four astronauts alive on a 30-day mission.\n\nWalk to the stations (click them, or use WASD and E) to choose the day's plan, then press RUN DAY.\n" +
-            "Power is limited. When the base runs short, the lights go out room by room.\n\nChoose a site:\n\n" + GameData.SourcesNote,
+            "Four astronauts. Thirty days. One outpost.\n\nWalk around the base (WASD or ZQSD, or click the ground). Click a module to use it. " +
+            "Drag to look around, scroll to zoom.\nSpend your 14 crates at the Supply Depot, plan each day, then press END SOL.\n\nChoose a site:\n\n" + GameData.SourcesNote,
             new List<Btn> {
-                new Btn { label = "Moon (15-day night)", act = () => StartGame("moon") },
-                new Btn { label = "Mars (dust storms)", act = () => StartGame("mars") } }, 19);
-        mode = Mode.Title;
+                new Btn { label = "Mars (dust storms)", act = () => StartGame("mars") },
+                new Btn { label = "Moon (15-day night)", act = () => StartGame("moon") } }, 18);
     }
 
     void StartGame(string s)
     {
         site = s; seed = (int)(DateTime.Now.Ticks % 100000) + 1;
-        st = Sim.NewGame(site, seed);
-        plan = Sim.DefaultPlan(st);
-        astro.localPosition = Vector2.zero; path.Clear(); pendingStation = null; armedStation = null;
-        ClearFx(); SetPlanet(site);
-        mode = Mode.Play;
-        dayPop = 0.6f;
-        Toast("Day 1. Plan your day, then press RUN DAY.");
-        Refresh();
+        st = Sim.NewGame(site, seed); plan = Sim.DefaultPlan(st); pv = null;
+        ClearFx(); bannerQueue.Clear(); pipQueue.Clear(); pipFull = ""; pipShown = 0; pipRoot.SetActive(false); bannerT = 0;
+        dayT = 0.34f; moonDayF = 1f; camYaw = 0f; camPitch = 20f; camDist = 13f; tipBuild = false; tipWarned = false; cardMod = null; cardRoot.SetActive(false);
+        BuildSite(site); Refresh();
+        modalRoot.SetActive(false);
+        StartCoroutine(Intro());
     }
 
-    void Toast(string s) { toastText.text = s; toastUntil = Time.time + 5f; }
-
-    void RunDay()
+    IEnumerator Intro()
     {
-        if (mode != Mode.Play || st == null || st.over) return;
-        var rec = Sim.RunDay(st, plan);
-        var sb = new List<string>();
-        sb.AddRange(rec.events);
-        if (rec.faultNew != null) sb.Add("A " + rec.faultNew + " module broke! Repair it in the Build Bay.");
-        if (rec.emergencyDamage != null) sb.Add("The emergency broke the " + rec.emergencyDamage + ".");
-        if (rec.repaired != null) sb.Add("The " + rec.repaired + " was repaired.");
-        if (rec.harvest > 0) sb.Add("Harvest: +" + rec.harvest + " kg of food.");
-        if (rec.science > 0) sb.Add("Science +" + rec.science + ".");
-        if (rec.shut.Count > 0) sb.Add("Not enough power: " + string.Join(", ", rec.shut) + " switched off.");
-        if (rec.o2Short) sb.Add("Oxygen ran out!");
-        Toast(string.Join("  ", sb));
-        OnDayResult(rec);
+        mode = Mode.Cine; Letterbox(true); cineActive = true; cineSpeed = 1.1f;
+        camPos = new Vector3(60f, 75f, -150f); camLook = new Vector3(0, 0, 0);
+        cinePos = new Vector3(10f, 9f, -30f); cineLook = new Vector3(0, 3f, 0);
+        BannerQ(DayWord + " 1", site == "mars" ? "Martian outpost. Thirty sols until the relief crew arrives." : "Lunar outpost. Thirty days until the relief crew arrives.", C(0.7f, 0.92f, 1f));
+        yield return new WaitForSeconds(shots ? 1.2f : 3.6f);
+        cineActive = false; Letterbox(false); mode = Mode.Play; Refresh();
+        PipSay("I am PIP, your base assistant. Your crew needs air, water, food and power for 30 " + dayWord + "s. Start at the Supply Depot: you have 14 crates.", 0);
+        if (site == "moon") PipSay("We are on the Moon. The sky is black even by day, because there is no air. Night comes on day 11 and lasts 15 days.", 1);
+        else PipSay("We are on Mars. Sunlight here is only 43% of what the Moon gets, and dust settles on the arrays every sol.", 1);
+    }
 
+    void Refresh()
+    {
+        if (st == null) return;
+        pv = Sim.Preview(st, plan);
+        RefreshHud(); RefreshWorld();
+        if (mode == Mode.Play && pv.shut.Count > 0 && !tipWarned) { tipWarned = true; PipSay("Warning: not enough power for today's plan. First to switch off: " + string.Join(", ", pv.shut.Distinct()) + ".", 1); }
+        if (pv.shut.Count == 0) tipWarned = false;
+    }
+
+    IEnumerator EndSol()
+    {
+        if (mode != Mode.Play || st == null || st.over) yield break;
+        mode = Mode.Cine; Letterbox(true); cineActive = true; cineSpeed = 1.6f; lapseActive = true; walkTarget = null; walkMod = null;
+        float ang = camYaw * Mathf.Deg2Rad;
+        cinePos = new Vector3(-Mathf.Sin(ang) * 42f + 8f, 17f, -Mathf.Cos(ang) * 42f); cineLook = new Vector3(0, 3f, 2f);
+        Sfx("on");
+        float T = shots ? 1.6f : 4.4f, t = 0; DayRecord rec = null; float t0 = dayT, m0 = moonDayF; int dayRun = st.day;
+        while (t < T)
+        {
+            t += Time.deltaTime; float k = Mathf.Clamp01(t / T), e = k * k * (3f - 2f * k);
+            dayT = t0 + e; moonDayF = m0 + e;
+            if (rec == null && k >= 0.6f) { rec = Sim.RunDay(st, plan); AfterRun(rec); }
+            yield return null;
+        }
+        if (rec == null) { rec = Sim.RunDay(st, plan); AfterRun(rec); }
+        dayT = t0; moonDayF = st.over ? m0 + 1f : st.day; lapseActive = false;
+        OnDayResult(rec); solPop = 0.7f;
+        yield return new WaitForSeconds(shots ? 0.5f : 1.3f);
+        while (bannerQueue.Count > 0 || bannerT > 0.5f) yield return null;
+        if (st.over) { yield return Ending(); cineActive = false; Letterbox(false); ShowDebrief(); yield break; }
+        cineActive = false; Letterbox(false); mode = Mode.Play; Refresh();
+        MorningBrief();
+        var card = GameData.Cards.FirstOrDefault(c => c.afterDay == rec.day);
+        if (card != null) ShowCard(card);
+    }
+
+    void AfterRun(DayRecord rec)
+    {
         plan.build.Clear(); plan.repair = false; plan.emergency = false;
         foreach (var a in rec.activated)
         {   // newly finished modules start switched on
@@ -208,27 +198,87 @@ public partial class PioneerGame : MonoBehaviour
         }
         plan.greenhouse = Math.Min(plan.greenhouse, st.mod["greenhouse"]);
         plan.drill = Math.Min(plan.drill, st.mod["drill"]);
-
-        Refresh();
-        // let the event animations play before the next screen appears
-        if (st.over) { mode = Mode.Modal; Invoke("ShowDebrief", 3.2f); return; }
-        pendingCard = GameData.Cards.FirstOrDefault(c => c.afterDay == rec.day);
-        if (pendingCard != null) { mode = Mode.Modal; Invoke("ShowPendingCard", 1.9f); }
+        if (plan.activity == "shelter" && !Sim.EnvFor(st, st.day).solarStorm) plan.activity = "science";
+        if (!st.over) Refresh(); else { pv = null; RefreshWorld(); }
     }
-    Card pendingCard;
-    void ShowPendingCard() { if (pendingCard != null) ShowCard(pendingCard); pendingCard = null; }
+
+    static readonly string[] MarsFacts = {
+        "One astronaut breathes 0.84 kg of oxygen a day. Four need 3.36 kg. (Real value)",
+        "The space station recovers about 98% of its water. This outpost recycles 90%.",
+        "Radiation on the Mars surface is about 0.67 mSv a day. The Curiosity rover measured it.",
+        "Fun fact: sunsets on Mars look blue. Watch the Sun when you end the sol.",
+        "NASA's MOXIE test made oxygen from Martian air. Our oxygen plant uses the same idea." };
+    static readonly string[] MoonFacts = {
+        "One astronaut breathes 0.84 kg of oxygen a day. Four need 3.36 kg. (Real value)",
+        "Radiation on the Moon is about 1.37 mSv a day. There is no air to block it.",
+        "Splitting water gives oxygen: 4.5 litres of water for 4 kg of oxygen.",
+        "A night on the Moon lasts about 14.8 Earth days. The arrays make no power the whole time.",
+        "The space station recovers about 98% of its water. This outpost recycles 90%." };
+
+    void MorningBrief()
+    {
+        var alerts = Sim.AlertsFor(st, st.day);
+        if (alerts.Count > 0) { PipSay(alerts[0].text, alerts[0].daysLeft == 0 ? 2 : 1); if (alerts[0].type == "solar" && alerts[0].daysLeft == 0) PipSay("Choose the Shelter activity today. It cuts the storm dose to one tenth.", 2); }
+        else if (pv.runoutO2.HasValue && pv.runoutO2.Value <= 3) PipSay("Oxygen runs out in " + pv.runoutO2.Value + " " + dayWord + "s at this rate.", 2);
+        else if (pv.runoutWater.HasValue && pv.runoutWater.Value <= 3) PipSay("Water runs out in " + pv.runoutWater.Value + " " + dayWord + "s at this rate.", 2);
+        else if (pv.runoutFood.HasValue && pv.runoutFood.Value <= 4) PipSay("Food runs out in " + pv.runoutFood.Value + " " + dayWord + "s at this rate.", 1);
+        else if (st.faults.Count > 0) PipSay("The " + SysName(st.faults[0].type) + " is broken. Repair it at the Supply Depot for 1 crate, or use three Maintenance days.", 1);
+        else { var f = site == "mars" ? MarsFacts : MoonFacts; PipSay(f[(st.day + seed) % f.Length], 0); }
+    }
+
+    IEnumerator Ending()
+    {
+        cineActive = true; Letterbox(true); cineSpeed = 1.4f;
+        bool ok = st.ending.type == "success";
+        float T = shots ? 1.6f : 5.2f, t = 0;
+        if (ok)
+        {
+            Vector3 land = Ground(new Vector3(15f, 0, -36f)); reliefShip.SetActive(true);
+            cinePos = new Vector3(-6f, 5f, -52f); cineLook = land + Vector3.up * 14f;
+            BannerQ("MISSION COMPLETE", "The relief crew has arrived.  " + st.ending.stars + " of 3 stars", C(0.55f, 1f, 0.72f)); Sfx("win"); rocketOn = true;
+            while (t < T)
+            {
+                t += Time.deltaTime; float k = Mathf.Clamp01(t / T), e = 1f - (1f - k) * (1f - k);
+                var p = land + Vector3.up * Mathf.Lerp(95f, 0f, e); reliefShip.transform.position = p; cineLook = p + Vector3.up * 4f;
+                if (k < 0.97f) for (int i = 0; i < 3; i++) Emit(psGlow, p + Vector3.up * 0.8f + UnityEngine.Random.insideUnitSphere * 0.5f, Vector3.down * UnityEngine.Random.Range(8f, 16f), C(1f, 0.7f, 0.3f), UnityEngine.Random.Range(1f, 2.2f), 0.5f);
+                if (p.y - land.y < 12f) DustPuff(land + UnityEngine.Random.insideUnitSphere * 3f, 2);
+                if (UnityEngine.Random.value < Time.deltaTime * 1.5f) Fireworks(Vector3.zero);
+                yield return null;
+            }
+            rocketOn = false; Fireworks(Vector3.zero); Flash(C(0.6f, 1f, 0.8f, 0.35f), 1f);
+        }
+        else
+        {
+            Vector3 p0 = landerMod.pos; cinePos = p0 + new Vector3(18f, 4f, -14f); cineLook = p0 + Vector3.up * 5f;
+            BannerQ(st.ending.reason == "dose" ? "EMERGENCY EVACUATION" : "MEDICAL EVACUATION", DayWord + " " + st.ending.day + ". The crew is going home safely.", C(1f, 0.4f, 0.34f));
+            Sfx("alarm"); Flash(C(1f, 0.05f, 0.05f, 0.45f), 1.2f); rocketOn = true; Shake(0.4f);
+            foreach (var c in crew) c.root.gameObject.SetActive(false);
+            player.root.gameObject.SetActive(false); pip.gameObject.SetActive(false);
+            while (t < T)
+            {
+                t += Time.deltaTime; float k = Mathf.Clamp01(t / T);
+                var p = p0 + Vector3.up * (k * k * 120f); landerMod.root.position = p; cineLook = p + Vector3.up * 4f;
+                for (int i = 0; i < 3; i++) Emit(psGlow, p + Vector3.up * 0.8f + UnityEngine.Random.insideUnitSphere * 0.5f, Vector3.down * UnityEngine.Random.Range(10f, 18f), C(1f, 0.7f, 0.3f), UnityEngine.Random.Range(1f, 2.4f), 0.6f);
+                if (k < 0.3f) DustPuff(p0 + UnityEngine.Random.insideUnitSphere * 3f, 3);
+                Smoke(p, C(0.8f, 0.8f, 0.8f, 0.35f), 2.5f, 2.5f);
+                yield return null;
+            }
+            rocketOn = false;
+        }
+        yield return new WaitForSeconds(shots ? 0.3f : 1.2f);
+    }
 
     void ShowCard(Card c)
     {
-        ShowModal("Myth or Reality?", c.text, new List<Btn> {
+        ShowModal("MYTH OR REALITY?", c.text, new List<Btn> {
             new Btn { label = "MYTH", close = false, act = () => AnswerCard(c, true) },
             new Btn { label = "REALITY", close = false, act = () => AnswerCard(c, false) } }, 26);
     }
     void AnswerCard(Card c, bool saidMyth)
     {
-        if (saidMyth == c.myth) { Flash(new Color(0.3f, 1f, 0.5f, 0.35f), 0.6f); Confetti(40); } else { Flash(new Color(1f, 0.5f, 0.2f, 0.3f), 0.5f); }
-        ShowModal(saidMyth == c.myth ? "Correct!" : "Not quite", c.text + "\n\n" + c.why + "\n\nSource: " + c.source,
-            new List<Btn> { new Btn { label = "Continue" } }, 20);
+        bool right = saidMyth == c.myth;
+        if (right) { Flash(C(0.3f, 1f, 0.5f, 0.3f), 0.6f); Sfx("good"); Fireworks(player.pos); } else { Flash(C(1f, 0.5f, 0.2f, 0.25f), 0.5f); Sfx("off"); }
+        ShowModal(right ? "Correct!" : "Not quite", c.text + "\n\n" + c.why + "\n\nSource: " + c.source, new List<Btn> { new Btn { label = "Continue" } }, 19);
     }
 
     void ShowDebrief()
@@ -241,47 +291,97 @@ public partial class PioneerGame : MonoBehaviour
         foreach (var s in d.chain) sb.AppendLine("  Day " + s.day + ": " + s.text);
         sb.AppendLine().AppendLine("The trade-off: " + d.tradeoff);
         sb.AppendLine().AppendLine("Next time: " + d.tip);
-        ShowModal(d.ok ? "MISSION COMPLETE" : "DEBRIEF", sb.ToString(), new List<Btn> {
+        mode = Mode.Modal;
+        ShowModal(d.ok ? "MISSION COMPLETE" : "MISSION DEBRIEF", sb.ToString(), new List<Btn> {
             new Btn { label = "Play again (" + site + ")", act = () => StartGame(site) },
-            new Btn { label = "Other site", act = () => StartGame(site == "moon" ? "mars" : "moon") } }, 16);
+            new Btn { label = "Other site", act = () => StartGame(site == "moon" ? "mars" : "moon") } }, 15);
     }
 
-    // ------------------------------------------------------------------ stations
-    void Interact(string id)
+    // ------------------------------------------------------------------ modules
+    void Describe(string id, out string body, out string action)
     {
+        action = null; body = "";
+        double o2p = site == "moon" ? V("o2p_power_moon") : V("o2p_power_mars");
         switch (id)
         {
-            case "oxygen": plan.oxygen = !plan.oxygen; Feedback("oxygen", plan.oxygen ? "ON" : "OFF", plan.oxygen ? Accent("oxygen") : new Color(1f, 0.5f, 0.4f)); Refresh(); break;
-            case "lab": plan.lab = !plan.lab; Feedback("lab", plan.lab ? "ON" : "OFF", plan.lab ? Accent("lab") : new Color(1f, 0.5f, 0.4f)); Refresh(); break;
+            case "oxygen":
+                body = (site == "mars" ? "Takes oxygen from the CO2 in the air, like NASA's MOXIE test." : "Splits water into oxygen: " + Fmt(V("o2p_water_moon")) + " L of water a day.")
+                    + " Makes " + Fmt(V("o2p_out")) + " kg a day and uses " + Fmt(o2p) + " energy.\nReal value: four astronauts breathe " + Fmt(4 * V("o2_person")) + " kg a day.\nState: " + oxyMod.state;
+                action = plan.oxygen ? "Switch OFF" : "Switch ON"; break;
+            case "lab":
+                body = "Earns " + Fmt(V("lab_science")) + " science points on a Science day. Uses " + Fmt(V("lab_power")) + " energy.\nIt is the first system to switch off when power is short.\nScience so far: " + Fmt(st.science) + " (3 stars need " + Fmt(V("star3_science")) + ").\nState: " + labMod.state;
+                action = plan.lab ? "Switch OFF" : "Switch ON"; break;
             case "greenhouse":
-                if (st.mod["greenhouse"] == 0) { Toast("No greenhouse yet. Build one in the Build Bay (it works the next day)."); break; }
-                plan.greenhouse = (plan.greenhouse + 1) % (st.mod["greenhouse"] + 1); Feedback("greenhouse", plan.greenhouse + " ON", Accent("greenhouse")); Refresh(); break;
+                body = "Each greenhouse uses " + Fmt(V("gh_power")) + " energy and " + Fmt(V("gh_water")) + " L of water a day, and gives " + Fmt(V("gh_yield")) + " kg of food every " + Fmt(V("gh_cycle")) + " days.\nReal life is slower: lettuce on the space station takes about a month.\nRunning: " + plan.greenhouse + " of " + st.mod["greenhouse"];
+                action = "Change how many run"; break;
             case "drill":
-                if (st.mod["drill"] == 0) { Toast("No ice drill yet. Build one in the Build Bay (it works the next day)."); break; }
-                plan.drill = (plan.drill + 1) % (st.mod["drill"] + 1); Feedback("drill", plan.drill + " ON", Accent("drill")); Refresh(); break;
-            case "kitchen": ShowRation(); break;
-            case "airlock": ShowActivity(); break;
-            case "build": ShowBuild(); break;
-            case "command": RunDay(); break;
+                body = "Melts buried ice into water: " + Fmt(V("drill_out")) + " L a day for " + Fmt(V("drill_power")) + " energy.\nThe crew uses " + Fmt(V("crew_water")) + " L a day before recycling.\nRunning: " + plan.drill + " of " + st.mod["drill"];
+                action = "Change how many run"; break;
+            case "hab":
+                body = "Air pressure, heat and water recycling (" + Mathf.RoundToInt((float)V("hab_recycle") * 100) + "% here, about " + Fmt(V("iss_water")) + "% on the space station). Uses " + Fmt(V("hab_power")) + " energy.\nShield layers: " + st.mod["shield"] + ". Each layer lets through 75% of the radiation.\nRations: " + plan.ration + ".  Activity: " + plan.activity + ".";
+                action = "Plan the " + dayWord; break;
+            case "depot":
+                body = "Crates left: " + (st.crates - QueuedCost() - (plan.repair ? 1 : 0)) + " of " + Fmt(V("crates_start")) + ". No more crates arrive, so every choice is a trade-off.\nNew modules start working the next " + dayWord + ".";
+                action = "Build or repair"; break;
+            case "lander":
+                body = "The way home. One-time emergency: turn rocket fuel into " + Fmt(V("emerg_water")) + " L of water, with a " + Mathf.RoundToInt((float)V("emerg_risk") * 100) + "% risk of breaking a module.\nState: " + landerMod.state;
+                if (!st.emergencyUsed) action = plan.emergency ? "Cancel emergency" : "Fuel to water"; break;
+            case "solar":
+                body = st.mod["solar"] + " arrays. Each makes " + Fmt(site == "moon" ? V("solar_moon") : V("solar_mars")) + " energy in full sunlight" + (site == "mars" ? " (Mars gets 43% of the Moon's sunlight).\nDust cuts the output by 3% a sol. Now at " + Mathf.RoundToInt(DustFactor() * 100) + "%. A Maintenance day cleans the arrays." : ", and nothing during the lunar night.") + "\nToday: " + Fmt(pv.rec.solar) + " energy.";
+                if (site == "mars") action = plan.activity == "maintenance" ? "Cleaning planned" : "Clean today"; break;
+            case "battery":
+                body = "Stores spare energy for later. Charge: " + Fmt(st.battery) + " of " + Fmt(V("battery_per") * st.mod["battery"]) + ".\nWhen the battery is empty, systems switch off: lab first, habitat last."; break;
+            case "reactor":
+                body = "A small fission reactor. Makes " + Fmt(V("reactor_out")) + " energy every day: at night, in dust, in the dark.\nIt stands far from the habitat on purpose."; break;
         }
     }
 
-    void ShowRation()
+    void Interact(string id)
     {
-        Func<string, string, Btn> mk = (r, label) => new Btn { label = label + (plan.ration == r ? "  (chosen)" : ""), act = () => { plan.ration = r; Refresh(); } };
-        ShowModal("KITCHEN: Rations", "Four astronauts eat 7.2 kg of food a day on Full rations.\n\nFull: crew health goes up if all needs are met.\nLean (75% food): health drops 1 a day.\nHalf (50% food): health drops 3 a day.\n\nFood left: " + Mathf.RoundToInt((float)st.food) + " kg.",
-            new List<Btn> { mk("full", "Full rations"), mk("lean", "Lean rations"), mk("half", "Half rations") });
+        if (st == null || st.over || mode != Mode.Play) return;
+        switch (id)
+        {
+            case "oxygen": plan.oxygen = !plan.oxygen; Toggle(oxyMod, plan.oxygen ? "ON" : "OFF", plan.oxygen); break;
+            case "lab": plan.lab = !plan.lab; Toggle(labMod, plan.lab ? "ON" : "OFF", plan.lab); break;
+            case "greenhouse":
+                if (st.mod["greenhouse"] == 0) break;
+                plan.greenhouse = (plan.greenhouse + 1) % (st.mod["greenhouse"] + 1); Toggle(SysMod("greenhouse"), plan.greenhouse + " RUNNING", plan.greenhouse > 0); break;
+            case "drill":
+                if (st.mod["drill"] == 0) break;
+                plan.drill = (plan.drill + 1) % (st.mod["drill"] + 1); Toggle(SysMod("drill"), plan.drill + " RUNNING", plan.drill > 0); break;
+            case "hab": ShowPlan(); break;
+            case "depot": ShowBuild(); break;
+            case "lander":
+                if (st.emergencyUsed) { PipSay("The fuel reserve is already used.", 1); break; }
+                plan.emergency = !plan.emergency; Toggle(landerMod, plan.emergency ? "EMERGENCY ARMED" : "CANCELLED", plan.emergency); break;
+            case "solar":
+                if (site == "mars") { plan.activity = plan.activity == "maintenance" ? "science" : "maintenance"; Toggle(solarMod, plan.activity == "maintenance" ? "CLEANING TODAY" : "NO CLEANING", plan.activity == "maintenance"); }
+                else PipSay("These arrays make " + Fmt(pv.rec.solar) + " energy today. During the lunar night they make nothing.", 0);
+                break;
+            case "battery": PipSay("Battery charge: " + Fmt(st.battery) + " of " + Fmt(V("battery_per") * st.mod["battery"]) + ". Batteries only store energy, they do not make it.", 0); break;
+            case "reactor": PipSay("The reactor makes " + Fmt(V("reactor_out")) + " energy day and night. It never needs sunlight.", 0); break;
+        }
     }
-
-    void ShowActivity()
+    void Toggle(Mod m, string text, bool good)
     {
-        Func<string, string, Btn> mk = (a, label) => new Btn { label = label + (plan.activity == a ? "  (chosen)" : ""), act = () => { plan.activity = a; Refresh(); } };
-        var list = new List<Btn> { mk("science", "Science"), mk("maintenance", site == "mars" ? "Maintenance (cleans dust)" : "Maintenance") , mk("shelter", "Shelter (storm)") };
-        var em = new Btn { label = st.emergencyUsed ? "Emergency used" : (plan.emergency ? "Emergency: ON" : "Emergency: fuel to water"), enabled = !st.emergencyUsed,
-            act = () => { plan.emergency = !plan.emergency; Refresh(); } };
-        list.Add(em);
-        ShowModal("AIRLOCK: Today's activity",
-            "Science: the lab earns 4 points (needs power).\nMaintenance: repairs faults" + (site == "mars" ? " and cleans the dust off the solar arrays" : "") + ".\nShelter: cuts a solar storm dose to one tenth.\n\nEmergency (once): turn rocket fuel into 40 L of water. 20% chance it breaks a module.", list);
+        Color c = good ? C(0.45f, 1f, 0.8f) : C(1f, 0.55f, 0.4f);
+        Burst(ModTop(m), c, 14, 4f); FloatText(ModTop(m), text, c); Sfx(good ? "on" : "off"); Refresh();
+    }
+    void CycleRation() { if (mode != Mode.Play) return; plan.ration = plan.ration == "full" ? "lean" : (plan.ration == "lean" ? "half" : "full"); Refresh(); }
+    void CycleActivity() { if (mode != Mode.Play) return; plan.activity = plan.activity == "science" ? "maintenance" : (plan.activity == "maintenance" ? "shelter" : "science"); Refresh(); }
+
+    void ShowPlan()
+    {
+        Func<string, string, Btn> ra = (r, label) => new Btn { label = (plan.ration == r ? "> " : "") + label, close = false, act = () => { plan.ration = r; Refresh(); ShowPlan(); } };
+        Func<string, string, Btn> ac = (a, label) => new Btn { label = (plan.activity == a ? "> " : "") + label, close = false, act = () => { plan.activity = a; Refresh(); ShowPlan(); } };
+        ShowModal("HABITAT: PLAN THE " + DayWord,
+            "Rations. Four astronauts eat " + Fmt(4 * V("food_person")) + " kg a day on Full rations. Food left: " + Mathf.RoundToInt((float)st.food) + " kg.\n" +
+            "   Full: health goes up if every need is met.   Lean (75%): health -1 a day.   Half (50%): health -3 a day.\n\n" +
+            "Activity.\n   Science: the lab earns " + Fmt(V("lab_science")) + " points (needs power).\n   Maintenance: repairs a broken module in three days" + (site == "mars" ? " and cleans the dust off the arrays" : "") + ".\n" +
+            "   Shelter: cuts a solar storm dose to one tenth.\n\nToday: " + (pv.shut.Count > 0 ? "NOT ENOUGH POWER (off: " + string.Join(", ", pv.shut.Distinct()) + ")" : "power is fine") + ". Dose today: " + Fmt(pv.doseToday) + " mSv.",
+            new List<Btn> { ra("full", "Full rations"), ra("lean", "Lean rations"), ra("half", "Half rations"),
+                ac("science", "Science"), ac("maintenance", "Maintenance"), ac("shelter", "Shelter"),
+                new Btn { label = "END " + DayWord, act = () => StartCoroutine(EndSol()) }, new Btn { label = "Back to the base" } }, 16);
     }
 
     int QueuedCount(string type) { return plan.build.Count(b => b == type); }
@@ -289,7 +389,7 @@ public partial class PioneerGame : MonoBehaviour
     bool CanQueue(string type)
     {
         var i = Sim.GetTypeInfo(type);
-        return st.crates - QueuedCost() >= i.cost && Sim.Owned(st, type) + QueuedCount(type) < i.max;
+        return st.crates - QueuedCost() - (plan.repair ? 1 : 0) >= i.cost && Sim.Owned(st, type) + QueuedCount(type) < i.max;
     }
     void ShowBuild()
     {
@@ -298,166 +398,18 @@ public partial class PioneerGame : MonoBehaviour
         {
             var type = t; var i = Sim.GetTypeInfo(type);
             list.Add(new Btn { label = i.name + " (" + i.cost + ")  x" + (Sim.Owned(st, type) + QueuedCount(type)), enabled = CanQueue(type), close = false,
-                act = () => { plan.build.Add(type); Refresh(); ShowBuild(); } });
+                act = () => { plan.build.Add(type); Sfx("thud"); Refresh(); ShowBuild(); } });
         }
         list.Add(new Btn { label = "Undo last", enabled = plan.build.Count > 0, close = false, act = () => { plan.build.RemoveAt(plan.build.Count - 1); Refresh(); ShowBuild(); } });
         bool canRepair = st.faults.Count > 0 && st.crates - QueuedCost() >= 1;
         list.Add(new Btn { label = plan.repair ? "Repair: ON (1 crate)" : "Repair a module (1 crate)", enabled = st.faults.Count > 0 && (plan.repair || canRepair), close = false,
             act = () => { plan.repair = !plan.repair; Refresh(); ShowBuild(); } });
         list.Add(new Btn { label = "Done" });
-        string broken = st.faults.Count > 0 ? "\nBroken: " + string.Join(", ", st.faults.Select(f => f.type)) + ". Repair costs 1 crate, or three Maintenance days." : "";
-        ShowModal("BUILD BAY", "Crates left: " + (st.crates - QueuedCost() - (plan.repair ? 1 : 0)) + " of " + st.crates + ". No more crates arrive.\nNew modules start working tomorrow. Number = built + queued." + broken, list);
-    }
-
-    // ------------------------------------------------------------------ refresh / lights
-    static readonly Dictionary<string, string> SysName = new Dictionary<string, string> { { "oxygen", "oxygen plant" }, { "lab", "science lab" }, { "greenhouse", "greenhouse" }, { "drill", "ice drill" } };
-
-    void Refresh()
-    {
-        if (st == null) return;
-        pv = Sim.Preview(st, plan);
-        dayText.text = "Day " + Mathf.Min(st.day, Sim.MAX_DAY) + " / " + Sim.MAX_DAY + "   " + (site == "moon" ? "MOON" : "MARS");
-        crateText.text = "Crates: " + (st.crates - QueuedCost() - (plan.repair ? 1 : 0));
-        var alerts = Sim.AlertsFor(st, st.day).Select(a => a.text).ToList();
-        if (st.faults.Count > 0) alerts.Add("Broken: " + string.Join(", ", st.faults.Select(f => SysName[f.type])) + ".");
-        alertText.text = string.Join("\n", alerts);
-
-        double cap = V("battery_per") * st.mod["battery"];
-        SetGauge("o2", "Oxygen", st.o2, 40, "kg", pv.runoutO2);
-        SetGauge("water", "Water", st.water, 120, "L", pv.runoutWater);
-        SetGauge("food", "Food", st.food, 250, "kg", pv.runoutFood);
-        SetGauge("battery", "Battery", st.battery, cap, "", pv.runoutBattery);
-        SetGauge("health", "Health", st.health, 100, "", null);
-        SetGauge("dose", "Dose", st.dose, 40, "mSv", null, true);
-
-        var sb = new StringBuilder("Energy today: made " + Fmt(pv.supply) + ", need " + Fmt(pv.demand));
-        if (pv.shut.Count > 0) sb.Append("  -  NOT ENOUGH POWER, off: " + string.Join(", ", pv.shut));
-        else sb.Append("  -  ok");
-        sb.Append("   |   Ration: " + plan.ration + "   Activity: " + plan.activity);
-        infoText.text = sb.ToString();
-
-        // room lights: dark when the player switched a system off, darker when the base cannot power it
-        foreach (var r in rooms.Values)
-        {
-            string state = ""; float a = 0f;
-            bool broken = r.system != null && st.faults.Any(f => f.type == r.system);
-            switch (r.id)
-            {
-                case "oxygen": state = plan.oxygen ? "ON" : "OFF"; if (!plan.oxygen) a = 0.45f; break;
-                case "lab": state = plan.lab ? "ON" : "OFF"; if (!plan.lab) a = 0.45f; break;
-                case "greenhouse": state = st.mod["greenhouse"] == 0 ? "not built" : plan.greenhouse + " / " + st.mod["greenhouse"] + " on"; if (st.mod["greenhouse"] == 0 || plan.greenhouse == 0) a = 0.45f; break;
-                case "drill": state = st.mod["drill"] == 0 ? "not built" : plan.drill + " / " + st.mod["drill"] + " on"; if (st.mod["drill"] == 0 || plan.drill == 0) a = 0.45f; break;
-                case "kitchen": state = plan.ration + " rations"; break;
-                case "airlock": state = plan.activity; break;
-                case "build": state = plan.build.Count > 0 ? plan.build.Count + " queued" : "ready"; break;
-                case "command": state = "run the day"; break;
-            }
-            if (r.system != null && (pv.shut.Contains(r.system) || pv.idle.Contains(r.system))) { a = 0.85f; state = "NO POWER"; }
-            if (broken) { a = 0.85f; state = "BROKEN"; }
-            r.targetDark = a; r.broken = broken; r.noPower = state == "NO POWER";
-            r.label.text = r.name + "\n" + state;
-        }
-        UpdateTimeline();
-        hallDark.color = new Color(0, 0, 0, pv.habOn ? 0f : 0.8f);
-        runButton.interactable = mode == Mode.Play && !st.over;
-    }
-
-    static double V(string id) { return GameData.V(id); }
-    static string Fmt(double x) { return (Math.Round(x * 10) / 10).ToString("0.#"); }
-    void SetGauge(string key, string name, double val, double max, string unit, int? runout, bool invert = false)
-    {
-        var g = gauges[key]; float f = max <= 0 ? 0 : Mathf.Clamp01((float)(val / max));
-        g.label.text = name + " " + Fmt(val) + (max > 0 ? "/" + Fmt(max) : "") + (unit != "" ? " " + unit : "") + (runout.HasValue ? "  (0 in " + runout.Value + "d)" : "");
-        var rt = (RectTransform)g.fill.transform; rt.anchorMin = Vector2.zero; rt.anchorMax = new Vector2(f, 1);
-        float good = invert ? 1 - f : f;
-        g.fill.color = good > 0.5f ? new Color(0.3f, 0.8f, 0.45f) : (good > 0.25f ? new Color(0.95f, 0.75f, 0.25f) : new Color(0.9f, 0.3f, 0.3f));
-        g.low = good <= 0.25f;
-    }
-
-    // ------------------------------------------------------------------ update
-    void Update()
-    {
-        if (toastText != null && Time.time > toastUntil) toastText.text = "";
-        AnimateAstronaut();
-        AnimateWorld();
-        UpdateFx();
-        // always show the whole base, even on a narrow (phone) screen
-        if (cam != null) cam.orthographicSize = Mathf.Max(5.4f, 9.9f / Mathf.Max(0.2f, cam.aspect));
-        if (runButton != null) runButton.interactable = mode == Mode.Play && st != null && !st.over;
-        if (mode != Mode.Play || st == null) return;
-
-        // keyboard movement
-        var dir = new Vector2(Input.GetAxisRaw("Horizontal"), Input.GetAxisRaw("Vertical"));
-        if (dir.sqrMagnitude > 0.01f)
-        {
-            path.Clear(); pendingStation = null;
-            Move((Vector2)astro.localPosition + dir.normalized * 6f * Time.deltaTime);
-        }
-        else if (path.Count > 0)
-        {
-            var next = path[0]; var pos = (Vector2)astro.localPosition;
-            var np = Vector2.MoveTowards(pos, next, 7f * Time.deltaTime);
-            Move(np);
-            if ((np - next).sqrMagnitude < 0.0001f)
-            {
-                path.RemoveAt(0);
-                if (path.Count == 0 && pendingStation != null) { var id = pendingStation; pendingStation = null; if (id != "command") armedStation = id; Interact(id); return; }
-            }
-        }
-        // walking into a room acts at once (once per visit). The Command console never fires by itself.
-        var here = (Vector2)astro.localPosition;
-        var entered = Nearest(here, 0.9f);
-        if (entered != null)
-        {
-            if (armedStation != entered.id && entered.id != "command")
-            {
-                armedStation = entered.id;
-                if (pendingStation == entered.id) pendingStation = null;   // already acting: do not act again on arrival
-                Interact(entered.id); return;
-            }
-        }
-        else if (Nearest(here, 1.9f) == null) armedStation = null;
-        UpdatePrompt();
-        if (Input.GetKeyDown(KeyCode.E) || Input.GetKeyDown(KeyCode.Space))
-        {
-            var near = Nearest(here, 1.6f);
-            if (near != null) Interact(near.id);
-        }
-        if (Input.GetMouseButtonDown(0) && !(EventSystem.current != null && EventSystem.current.IsPointerOverGameObject()))
-        {
-            var wp = (Vector2)cam.ScreenToWorldPoint(Input.mousePosition);
-            var s = Nearest(wp, 1.4f);
-            if (s != null) GoTo(s.pos, s.id); else GoTo(wp, null);
-        }
-    }
-
-    Station Nearest(Vector2 p, float maxDist)
-    {
-        Station best = null; float bd = maxDist;
-        foreach (var s in stations) { float d = Vector2.Distance(p, s.pos); if (d < bd) { bd = d; best = s; } }
-        return best;
-    }
-
-    void Move(Vector2 p)
-    {
-        p.x = Mathf.Clamp(p.x, -9.2f, 9.2f); p.y = Mathf.Clamp(p.y, -5f, 5f);
-        var old = (Vector2)astro.localPosition;
-        if (Mathf.Abs(p.x - old.x) > 0.001f) facing = p.x > old.x ? 1f : -1f;
-        if ((p - old).sqrMagnitude > 1e-6f) moving = true;
-        astro.localPosition = p;
-    }
-
-    void GoTo(Vector2 target, string stationId)
-    {
-        target.x = Mathf.Clamp(target.x, -9.2f, 9.2f); target.y = Mathf.Clamp(target.y, -5f, 5f);
-        var pos = (Vector2)astro.localPosition;
-        path.Clear(); pendingStation = stationId;
-        bool inHall = Mathf.Abs(pos.y) < 1.1f, targetInHall = Mathf.Abs(target.y) < 1.1f;
-        if (!(inHall && targetInHall))
-        {
-            if (!inHall) path.Add(new Vector2(pos.x, 0));
-            path.Add(new Vector2(target.x, 0));
-        }
-        path.Add(target);
+        string broken = st.faults.Count > 0 ? "\nBroken: " + string.Join(", ", st.faults.Select(f => SysName(f.type))) + ". Repair costs 1 crate, or three Maintenance days." : "";
+        ShowModal("SUPPLY DEPOT", "Crates left: " + (st.crates - QueuedCost() - (plan.repair ? 1 : 0)) + " of " + st.crates + ". No more crates arrive.\n" +
+            "New modules start working the next " + dayWord + ". The number is built + planned.\n\n" +
+            "Solar array: power in sunlight.   Battery: stores 10 energy.   Fission reactor: 8 energy, day and night.\n" +
+            "Greenhouse: food every 10 days.   Ice drill: 6 L of water a day.   Shield layer: blocks a quarter of the radiation." + broken, list, 16);
+        if (!tipBuild) { tipBuild = true; PipSay("Think about what is coming: " + (site == "moon" ? "a 15-day night with no solar power, and solar storms." : "a dust storm, dusty arrays, and a solar storm.") + " You cannot buy everything.", 1); }
     }
 }
