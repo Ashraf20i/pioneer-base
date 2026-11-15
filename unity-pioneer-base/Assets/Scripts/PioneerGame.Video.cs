@@ -41,7 +41,7 @@ public partial class PioneerGame
         Caption(caption);
         for (int i = 0; i < n; i++)
         {
-            yield return new WaitForEndOfFrame();
+            yield return null;   // WaitForEndOfFrame never fires in batchmode; the camera is rendered by hand below
             cam.Render();
             RenderTexture.active = vRT;
             var tex = new Texture2D(vRT.width, vRT.height, TextureFormat.RGB24, false);
