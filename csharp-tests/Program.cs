@@ -131,7 +131,7 @@ static class Program
         Check("Hard base after a careful journey: winnable (at least 20%)", wCareful >= 0.20, (100 * wCareful).ToString("0.0") + "% completed");
         Check("Hard base after a good journey: at least as winnable", wGood >= wCareful, (100 * wGood).ToString("0.0") + "% completed");
         if (!careless.failed) Console.WriteLine("  (info) base after a careless journey: " + (100 * BaseWinRate(careless)).ToString("0.0") + "% completed");
-        Check("Tech questions: 12 questions, each with 3 options and a valid answer", Journey.Questions.Count == 12 && Journey.Questions.All(q => q.options.Length == 3 && q.answer >= 0 && q.answer < 3 && q.why.Length > 10), Journey.Questions.Count + " questions");
+        Check("Tech questions: 13 questions, each with 3 options and a valid answer", Journey.Questions.Count == 13 && Journey.Questions.All(q => q.options.Length == 3 && q.answer >= 0 && q.answer < 3 && q.why.Length > 10), Journey.Questions.Count + " questions");
 
         Console.WriteLine(failures > 0 ? "\n" + failures + " check(s) FAILED" : "\nAll checks passed");
         return failures > 0 ? 1 : 0;

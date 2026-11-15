@@ -135,7 +135,8 @@ public partial class PioneerGame : MonoBehaviour
             new List<Btn> {
                 new Btn { label = "MARS  ·  dust storms", act = () => StartGame("mars"), primary = true },
                 new Btn { label = "MOON  ·  15-day night", act = () => StartGame("moon"), primary = true },
-                new Btn { label = "HARD  ·  Crash Landing", act = () => StartHard() } }, 17,
+                new Btn { label = "HARD  ·  Crash Landing", act = () => StartHard() },
+                new Btn { label = "DATA SOURCES", close = false, act = () => ShowSources() } }, 17,
             "JUNIOR ASTRONAUT MISSION TRAINER  ·  SELECT A SITE", false, GameData.SourcesNote.ToUpper(), UiAccent);
         modalFooter.color = UiMuted;
     }
@@ -223,13 +224,15 @@ public partial class PioneerGame : MonoBehaviour
         "The space station recovers about 98% of its water. This outpost recycles 90%.",
         "Radiation on the Mars surface is about 0.67 mSv a day. The Curiosity rover measured it.",
         "Fun fact: sunsets on Mars look blue. Watch the Sun when you end the sol.",
-        "NASA's MOXIE test made oxygen from Martian air. Our oxygen plant uses the same idea." };
+        "NASA's MOXIE test made oxygen from Martian air. Our oxygen plant uses the same idea.",
+        "A radio message to Earth takes 3 to 22 minutes from Mars. In an emergency, you decide alone." };
     static readonly string[] MoonFacts = {
         "One astronaut breathes 0.84 kg of oxygen a day. Four need 3.36 kg. (Real value)",
         "Radiation on the Moon is about 1.37 mSv a day. There is no air to block it.",
         "Splitting water gives oxygen: 4.5 litres of water for 4 kg of oxygen.",
         "A night on the Moon lasts about 14.8 Earth days. The arrays make no power the whole time.",
-        "The space station recovers about 98% of its water. This outpost recycles 90%." };
+        "The space station recovers about 98% of its water. This outpost recycles 90%.",
+        "A radio message to Earth takes about 1.3 seconds from the Moon. Mission Control can help quickly." };
 
     void MorningBrief()
     {
@@ -282,6 +285,30 @@ public partial class PioneerGame : MonoBehaviour
             rocketOn = false;
         }
         yield return new WaitForSeconds(shots ? 0.3f : 1.2f);
+    }
+
+    // Every number in the game, with its tag and its NASA source
+    static readonly Dictionary<string, string> SrcName = new Dictionary<string, string> {
+        { "sun_earth", "NASA TSIS-1" }, { "mars_au", "NASA Mars Fact Sheet" }, { "lunar_night", "NASA Moon Facts" },
+        { "dose_mars", "NASA Curiosity RAD (Hassler et al. 2014)" }, { "o2_person", "NASA life-support values (ECLSS)" },
+        { "food_person", "NASA life-support values (ECLSS)" }, { "iss_water", "NASA ECLSS water milestone, 2023" },
+        { "career_limit", "NASA-STD-3001" }, { "mars_sun_ratio", "from the NASA Mars Fact Sheet" }, { "o2p_water_moon", "chemistry: 2 H2O -> 2 H2 + O2" },
+        { "crew_water", "4 astronauts x 3 L" }, { "comms_moon", "from the NASA Moon Fact Sheet" }, { "comms_mars", "from the NASA Mars Fact Sheet" },
+        { "dose_moon", "about 2 x the NASA Curiosity value" } };
+    void ShowSources()
+    {
+        var sb = new StringBuilder();
+        foreach (var tag in new[] { "Real", "Derived" })
+        {
+            sb.AppendLine(tag == "Real" ? "REAL  ·  measured or published by NASA" : "DERIVED  ·  calculated from real values");
+            foreach (var r in GameData.Rows.Where(x => x.tag == tag))
+                sb.AppendLine("  " + r.label + ": " + Fmt(r.value) + " " + r.unit + (SrcName.ContainsKey(r.id) ? "   (" + SrcName[r.id] + ")" : ""));
+            sb.AppendLine();
+        }
+        sb.AppendLine("SIMPLIFIED  ·  " + GameData.Rows.Count(x => x.tag == "Simplified") + " game values, made simple on purpose (crates, module sizes, the Moon dose " + Fmt(V("dose_moon")) + " mSv/day). Real values are never changed to make the game easier.");
+        sb.AppendLine("Solar storm days come from two real storms in NASA DONKI: 11 May 2024 and 3 October 2024. Full list with links: SOURCES.md in the repository.");
+        ShowModal("Where do these numbers come from?", sb.ToString(), new List<Btn> { new Btn { label = "BACK", act = () => ShowTitle(), primary = true } }, 13,
+            "DATA SOURCES  ·  ALL NASA", false, null, UiAccent);
     }
 
     void ShowCard(Card c)

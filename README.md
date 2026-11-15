@@ -1,6 +1,6 @@
 # Pioneer Base
 
-A turn-based browser game for ages 9 to 14. You run a **Moon** or **Mars** outpost and keep four astronauts safe for 30 mission days. Every day you plan, press **Run day**, and watch how power, oxygen, water, food and radiation pull against each other. At the end the **debrief** shows the exact chain of events and decisions that made the mission work or fail.
+A turn-based browser game for ages 7 to 12. You run a **Moon** or **Mars** outpost and keep four astronauts safe for 30 mission days. Every day you plan, press **Run day**, and watch how power, oxygen, water, food and radiation pull against each other. At the end the **debrief** shows the exact chain of events and decisions that made the mission work or fail.
 
 An independent student project for the NASA Space Apps Challenge 2026 (challenge: *Build a Junior Astronaut Mission Trainer*). Not affiliated with or endorsed by NASA.
 
@@ -70,7 +70,7 @@ The game is static files, so any static host works.
 
 ## Test with real people (needed before submission)
 
-Ask at least three people who have never seen the game to finish one game with no spoken help. Ideally one is aged 9 to 14 (do not film them). Note where they stop. If most lose before day 12, raise the starting stocks in `js/data.js`, run `npm test`, and keep Real values unchanged.
+Ask at least three people who have never seen the game to finish one game with no spoken help. Ideally one is aged 7 to 12 (do not film them). Note where they stop. If most lose before day 12, raise the starting stocks in `js/data.js`, run `npm test`, and keep Real values unchanged.
 
 ## AI-use statement
 

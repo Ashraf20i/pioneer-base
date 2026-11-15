@@ -91,6 +91,8 @@ namespace PioneerBase
         // Technical challenges. Every answer can be checked with the numbers in GameData or by simple arithmetic.
         public static readonly List<TechQuestion> Questions = new List<TechQuestion>
         {
+            new TechQuestion { topic = "PHYSICS: RADIO DELAY", text = "Radio travels at about 300,000 km per second. Mars is 180 million km from Earth today. How long does one message take?",
+                options = new[] { "About 10 seconds", "About 10 minutes", "About 10 hours" }, answer = 1, why = "Time = distance / speed = 180,000,000 / 300,000 = 600 seconds = 10 minutes. Mission Control cannot help in an emergency: the crew must decide." },
             new TechQuestion { topic = "PHYSICS: ENERGY", text = "The rover battery stores 12 kWh. The motor uses 3 kW. How long can it drive?",
                 options = new[] { "2 hours", "4 hours", "9 hours" }, answer = 1, why = "Energy = power x time, so time = 12 kWh / 3 kW = 4 hours." },
             new TechQuestion { topic = "PHYSICS: MOTION", text = "The rover drives at 8 km/h. A supply pod is 24 km away. How long is the drive?",

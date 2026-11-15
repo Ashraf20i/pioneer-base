@@ -12,17 +12,31 @@ This file is generated from `js/data.js` (run `npm run sources`). The in-game pa
 | Mars distance from the Sun | 1.524 AU | Real | Mars is about one and a half times farther from the Sun than Earth. | [NASA Mars Fact Sheet](https://nssdc.gsfc.nasa.gov/planetary/factsheet/marsfact.html) |
 | Length of the lunar night | 15 turns (days) | Real | One night on the Moon lasts about 14.8 Earth days. The game rounds to 15 turns. | [NASA Moon Facts](https://science.nasa.gov/moon/facts/) |
 | Radiation on the Mars surface | 0.67 mSv/day | Real | How much radiation a person gets each day on Mars. Measured by the Curiosity rover. | [MSL Curiosity RAD (Hassler et al. 2014)](https://doi.org/10.1126/science.1244797) |
-| Radiation on the Moon surface | 1.37 mSv/day | Real | How much radiation a person gets each day on the Moon. The Moon has no air to block it. This is a non-NASA measurement (China/Germany). | [Chang'e 4 LND (Zhang et al. 2020) - not NASA](https://doi.org/10.1126/sciadv.aaz1334) |
 | Oxygen one astronaut breathes | 0.84 kg/day | Real | Four astronauts need 3.36 kg of oxygen every day. | [NASA life-support reference values](https://www.nasa.gov/reference/environmental-control-and-life-support-systems-eclss/) |
 | Food one astronaut needs | 1.8 kg/day | Real | About 1.8 kg a day with packaging. Four astronauts need 7.2 kg. | [NASA life-support reference values](https://www.nasa.gov/reference/environmental-control-and-life-support-systems-eclss/) |
 | Water recovered on the ISS | 98 % | Real | The space station recycles about 98% of its water. This is a fact to learn. The game outpost recycles 90%. | [NASA ECLSS milestone, 2023](https://www.nasa.gov/missions/station/iss-research/nasa-achieves-water-recovery-milestone-on-international-space-station/) |
 | Real solar storms used as events | 11 May 2024, 3 Oct 2024 dates | Real | Two big flares from the Sun. The game places them on mission days 7 and 20 (Moon). | [NASA DONKI](https://ccmc.gsfc.nasa.gov/tools/DONKI/) |
 | NASA career radiation limit | 600 mSv | Real | The most radiation an astronaut may collect in a whole career. The game uses a much smaller 40 mSv for one mission. | [NASA-STD-3001](https://www.nasa.gov/reference/nasa-std-3001/) |
 
+## Radiation
+
+| Value | Number | Tag | Meaning | Source |
+|---|---|---|---|---|
+| Radiation on the Moon surface | 1.37 mSv/day | Simplified | How much radiation a person gets each day on the Moon. The Moon has almost no air to block it, so the game uses about twice the dose NASA's Curiosity rover measured on Mars. | [Game value: about 2 x the NASA Curiosity value (the Moon has no air, NASA Moon Facts)](https://science.nasa.gov/moon/facts/) |
+| Shield layer cost | 2 crates | Simplified | Price of one layer. | Game value |
+| Most shield layers | 3 layers | Simplified | Room for this many. | Game value |
+| Shield layer effect | 0.75 per layer | Simplified | Each layer lets through 75% of the radiation. | Game value |
+| Solar storm dose on the Moon | 12 mSv | Simplified | Extra radiation on a storm day if the crew is not sheltered. | Game value |
+| Solar storm dose on Mars | 4 mSv | Simplified | Mars has a thin air layer that helps a little. | Game value |
+| Shelter effect | 0.1 fraction | Simplified | Sheltering cuts the storm dose to one tenth. | Game value |
+| Mission dose limit | 40 mSv | Simplified | Go over this and the crew is evacuated. NASA's career limit is 600 mSv. | Game value |
+
 ## Derived values
 
 | Value | Number | Tag | Meaning | Source |
 |---|---|---|---|---|
+| Radio delay, Earth to Moon | 1.3 seconds | Derived | Radio travels at the speed of light. The Moon is about 384,400 km away, so a message takes about 1.3 seconds each way. | [Calculated from the NASA Moon Fact Sheet distance](https://nssdc.gsfc.nasa.gov/planetary/factsheet/moonfact.html) |
+| Radio delay, Earth to Mars (longest) | 22 minutes | Derived | Mars is 55 to 401 million km from Earth, so one message takes 3 to 22 minutes. In an emergency, Mission Control cannot answer in time: the crew must decide alone. | [Calculated from the NASA Mars Fact Sheet distances](https://nssdc.gsfc.nasa.gov/planetary/factsheet/marsfact.html) |
 | Sunlight at Mars compared with the Moon | 0.43 fraction | Derived | Light gets weaker with distance squared: 1 / 1.524² = 0.43. | [Calculated from the two values above](https://nssdc.gsfc.nasa.gov/planetary/factsheet/marsfact.html) |
 | Water for 4 kg of oxygen (Moon plant) | 4.5 L | Derived | Splitting water (2 H₂O → O₂ + 2 H₂) needs 1.125 kg of water for every 1 kg of oxygen. | Chemistry |
 | Water the crew uses (before recycling) | 12 L/day | Derived | 4 astronauts × about 3 litres each for drinking, food and washing. | Calculated: 4 × 3 L |
@@ -81,18 +95,6 @@ This file is generated from `js/data.js` (run `npm run sources`). The in-game pa
 | Ice drill power | 3 ⚡/day | Simplified | Power one drill uses. | Game value |
 | Ice drill water | 6 L/day | Simplified | Water from melted ice, each day a drill runs. | Game value |
 
-## Radiation
-
-| Value | Number | Tag | Meaning | Source |
-|---|---|---|---|---|
-| Shield layer cost | 2 crates | Simplified | Price of one layer. | Game value |
-| Most shield layers | 3 layers | Simplified | Room for this many. | Game value |
-| Shield layer effect | 0.75 per layer | Simplified | Each layer lets through 75% of the radiation. | Game value |
-| Solar storm dose on the Moon | 12 mSv | Simplified | Extra radiation on a storm day if the crew is not sheltered. | Game value |
-| Solar storm dose on Mars | 4 mSv | Simplified | Mars has a thin air layer that helps a little. | Game value |
-| Shelter effect | 0.1 fraction | Simplified | Sheltering cuts the storm dose to one tenth. | Game value |
-| Mission dose limit | 40 mSv | Simplified | Go over this and the crew is evacuated. NASA's career limit is 600 mSv. | Game value |
-
 ## Crew
 
 | Value | Number | Tag | Meaning | Source |
@@ -134,7 +136,7 @@ This file is generated from `js/data.js` (run `npm run sources`). The in-game pa
 | Dust on solar panels can end a Mars mission. | Reality | [NASA, InSight mission retired](https://www.nasa.gov/missions/insight/nasa-retires-insight-mars-lander-mission-after-years-of-science/) |
 | The space station recycles almost all of its water. | Reality | [NASA, water recovery milestone](https://www.nasa.gov/missions/station/iss-research/nasa-achieves-water-recovery-milestone-on-international-space-station/) |
 | You can make oxygen from the air on Mars. | Reality | [NASA MOXIE](https://www.nasa.gov/missions/mars-2020-perseverance/perseverance-rover/nasas-oxygen-generating-experiment-moxie-completes-mars-mission/) |
-| The Moon has air that blocks space radiation, like Earth does. | Myth | [Chang'e 4 (Zhang et al. 2020)](https://doi.org/10.1126/sciadv.aaz1334) |
+| The Moon has air that blocks space radiation, like Earth does. | Myth | [NASA Moon Facts](https://science.nasa.gov/moon/facts/) |
 | A night on the Moon lasts only a few hours. | Myth | [NASA Moon Facts](https://science.nasa.gov/moon/facts/) |
 
 ## Solar storm events
@@ -148,7 +150,7 @@ The game does **not** claim that the October 2024 storm was seen on Mars. It onl
 Checked by the build on 14 November 2026 with automated web requests. Open each link in a browser before you submit.
 
 1. **NASA DONKI flare details (event ID, class, peak time, link).** The API call `https://api.nasa.gov/DONKI/FLR?startDate=2024-05-10&endDate=2024-05-12&api_key=DEMO_KEY` answered `404 Not Found` (path `/DONKI-API/get/FLR/`) when the game was built, and so did the October 2024 call and other DONKI addresses we tried. We kept the two dates, show **no** flare ID or class in the game, and link to the DONKI tool page. If the API works for you, add the strongest flare of each day to `js/data.js` (`donki` object) and to the in-game alert.
-2. **Radiation numbers (0.67 and 1.37 mSv/day).** The two DOI links return HTTP 403 to scripts because the publisher blocks automated requests. Open them in a browser and confirm the dose numbers: Hassler et al. 2014 (<https://doi.org/10.1126/science.1244797>) and Zhang et al. 2020 (<https://doi.org/10.1126/sciadv.aaz1334>). The Moon value is a non-NASA measurement and is labelled that way in the game.
+2. **Radiation on Mars (0.67 mSv/day).** The DOI link returns HTTP 403 to scripts because the publisher blocks automated requests. Open it in a browser and confirm the dose: Hassler et al. 2014 (<https://doi.org/10.1126/science.1244797>). The Moon dose (1.37 mSv/day) is now a Simplified game value, so that every source in the game is a NASA source.
 3. **Oxygen 0.84 kg/day and food 1.8 kg/day per astronaut.** We could not find one NASA page that states both numbers. The game links the NASA ECLSS reference page. Please confirm them in the NASA life-support baseline values document, or reword the source line.
 4. **Sunlight at Earth 1361 W/m2 (NASA TSIS-1).** The TSIS-1 page opens (HTTP 200), but a text search of the page did not find the number. Please confirm 1361 W/m2 in a NASA solar irradiance page and fix the link if needed.
 5. **Lunar night about 14.8 Earth days.** The NASA Moon Facts page confirms a lunar day of about 29 Earth days seen from Earth. The 14.8 days (half of that) is our reading. Please confirm the wording, or call this value Derived.

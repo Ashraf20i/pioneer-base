@@ -12,7 +12,7 @@ Legende :  [FAIT] conforme au cahier | [FAIT*] fait avec un ecart (explique)
 1. CE QUE JE LIVRE EN UNE PHRASE
 -----------------------------------------------------------------
 Un jeu web au tour par tour (HTML/CSS/JS, sans serveur, sans internet) ou
-un eleve de 9 a 14 ans dirige une base lunaire ou martienne pendant 30
+un eleve de 7 a 12 ans dirige une base lunaire ou martienne pendant 30
 jours ; l'ecran de fin montre la chaine exacte de decisions qui a fait
 reussir ou echouer la mission.
 
@@ -189,7 +189,7 @@ Jeu joue dans un vrai navigateur : victoire et defaite sur la Lune et sur
 Mars, console propre, fonctionne ouvert depuis le disque.
 
 [A FAIRE PAR L'EQUIPE] TEST HUMAIN OBLIGATOIRE : 3 personnes qui n'ont jamais
-vu le jeu finissent une partie sans explication (idealement une de 9 a 14 ans,
+vu le jeu finissent une partie sans explication (idealement une de 7 a 12 ans,
 sans la filmer). Les joueurs simules ne sont pas des enfants.
 
 

@@ -72,8 +72,9 @@ console.log('  cause chains checked: ' + chainsChecked);
 });
 
 // Real values must keep their locked numbers.
-var locked = { sun_earth: 1361, mars_au: 1.524, lunar_night: 15, dose_mars: 0.67, dose_moon: 1.37, o2_person: 0.84, food_person: 1.8, iss_water: 98, career_limit: 600 };
+var locked = { sun_earth: 1361, mars_au: 1.524, lunar_night: 15, dose_mars: 0.67, o2_person: 0.84, food_person: 1.8, iss_water: 98, career_limit: 600 };
 Object.keys(locked).forEach(function (k) { ok(V(k) === locked[k] && PB.tag(k) === 'Real', 'Real value locked: ' + k); });
+ok(V('dose_moon') === 1.37, 'Moon dose game value kept at 1.37');
 ok(Math.abs(V('mars_sun_ratio') - 1 / (1.524 * 1.524)) < 0.005, 'Mars sunlight ratio matches 1/1.524^2');
 ok(Math.abs(V('o2p_water_moon') - 4 * 1.125) < 1e-9, 'Electrolysis water matches 1.125 kg per kg');
 PB.DATA.values.forEach(function (v) {

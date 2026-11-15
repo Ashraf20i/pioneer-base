@@ -15,6 +15,8 @@
     greenhouse: function () { return V('gh_yield') + ' kg of food every ' + V('gh_cycle') + ' lit days'; },
     drill: function () { return 'Melts ice: +' + V('drill_out') + ' L of water a day'; },
     shield: function () { return 'Lets through ' + Math.round(V('shield_factor') * 100) + '% of radiation per layer'; }
+    4: { focus: 'sec-preview', text: function (st) {
+      return '<strong>Mission Control:</strong> Our radio messages take ' + (st.site === 'moon' ? 'about 1.3 seconds' : '3 to 22 minutes') + ' to reach you. ' + (st.site === 'moon' ? 'We can help quickly.' : 'In an emergency we cannot answer in time, so you decide alone. Plan ahead.'); } }
   };
   var MOD_COST_ID = { solar: 'solar_cost', battery: 'battery_cost', reactor: 'reactor_cost', greenhouse: 'gh_cost', drill: 'drill_cost', shield: 'shield_cost' };
 
@@ -48,7 +50,9 @@
       site: site, st: sim.newGame(site, seed), seed: seed,
       plan: { oxygen: true, lab: true, gh: [], dr: [], activity: 'science', ration: 'full', repair: false, emergency: false },
       cart: {}, reports: [], mythSeen: {}, hintsOff: false, hintDismissedDay: 0
-    };
+      4: { focus: 'sec-preview', text: function (st) {
+      return '<strong>Mission Control:</strong> Our radio messages take ' + (st.site === 'moon' ? 'about 1.3 seconds' : '3 to 22 minutes') + ' to reach you. ' + (st.site === 'moon' ? 'We can help quickly.' : 'In an emergency we cannot answer in time, so you decide alone. Plan ahead.'); } }
+  };
     show('game');
     renderAll();
     $('main').focus({ preventScroll: true });
@@ -67,7 +71,9 @@
       oxygen: p.oxygen, lab: p.lab,
       greenhouse: count(p.gh.slice(0, st.mod.greenhouse)), drill: count(p.dr.slice(0, st.mod.drill)),
       activity: p.activity, ration: p.ration, build: build, repair: p.repair, emergency: p.emergency
-    };
+      4: { focus: 'sec-preview', text: function (st) {
+      return '<strong>Mission Control:</strong> Our radio messages take ' + (st.site === 'moon' ? 'about 1.3 seconds' : '3 to 22 minutes') + ' to reach you. ' + (st.site === 'moon' ? 'We can help quickly.' : 'In an emergency we cannot answer in time, so you decide alone. Plan ahead.'); } }
+  };
   }
   function cartCost() {
     var c = 0;
@@ -114,6 +120,8 @@
       return '<strong>Mission Control:</strong> Look at "Energy today". Power made must be at least the power used. If it is not, systems shut down, starting with the science lab.'; } },
     3: { focus: 'sec-ration', text: function () {
       return '<strong>Mission Control:</strong> Check the "runs out in" numbers. If one is small, fix it now: build a drill or greenhouse, or choose smaller rations. Smaller rations cost the crew some health.'; } }
+    4: { focus: 'sec-preview', text: function (st) {
+      return '<strong>Mission Control:</strong> Our radio messages take ' + (st.site === 'moon' ? 'about 1.3 seconds' : '3 to 22 minutes') + ' to reach you. ' + (st.site === 'moon' ? 'We can help quickly.' : 'In an emergency we cannot answer in time, so you decide alone. Plan ahead.'); } }
   };
   function renderHint() {
     var st = G.st, h = HINTS[st.day], box = $('hint');

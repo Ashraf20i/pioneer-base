@@ -8,7 +8,7 @@ Pioneer Base
 
 ## Summary (three sentences)
 
-Pioneer Base is a free web game where a student aged 9 to 14 runs a lunar or Martian outpost for 30 mission days and keeps four astronauts healthy. Every day the player balances power, oxygen, water, food and radiation shielding, with a live preview that shows what a plan will do before it is run. When the mission ends, the game shows the exact chain of decisions and shortages that made it fail or succeed, and tags every number as Real, Derived or Simplified.
+Pioneer Base is a free web game where a student aged 7 to 12 runs a lunar or Martian outpost for 30 mission days and keeps four astronauts healthy. Every day the player balances power, oxygen, water, food and radiation shielding, with a live preview that shows what a plan will do before it is run. When the mission ends, the game shows the exact chain of decisions and shortages that made it fail or succeed, and tags every number as Real, Derived or Simplified.
 
 ## Challenge
 
@@ -33,7 +33,7 @@ Build a Junior Astronaut Mission Trainer.
 3. **Tested balance.** An automatic test plays 200 games per site with scripted players: a player who does nothing and a naive player always or almost always fail, a careful but imperfect player finishes about half the time on the Moon and most of the time on Mars, and an expert nearly always finishes. Plans with no reactor on the Moon, or that ignore Mars dust, cannot finish.
 4. **Made for a classroom.** No install, no account, no internet needed, and it works on phones, tablets and laptops with keyboard support. A teacher guide with a 45-minute lesson and five discussion questions is built in. Failure is always an "evacuation", never worse, so students can try again.
 
-**Who it is for.** Students aged 9 to 14, their teachers, and families.
+**Who it is for.** Students aged 7 to 12, their teachers, and families.
 
 **How we built it.** Plain HTML, CSS and JavaScript with no framework and no external files. The simulation engine is separate from the screen so it can be tested in Node. All artwork is original inline SVG.
 
@@ -43,7 +43,7 @@ Build a Junior Astronaut Mission Trainer.
 
 - **NASA DONKI** (Space Weather Database Of Notifications, Knowledge, Information): the two solar storm dates, 11 May 2024 and 3 October 2024. <https://ccmc.gsfc.nasa.gov/tools/DONKI/>
 - **NASA TSIS-1**: sunlight at Earth's distance, 1361 W/m2. <https://science.nasa.gov/mission/tsis-1/>
-- **NASA Mars Fact Sheet**: Mars distance from the Sun, 1.524 AU, and surface pressure. <https://nssdc.gsfc.nasa.gov/planetary/factsheet/marsfact.html>
+- **NASA Mars Fact Sheet**: Mars distance from the Sun, 1.524 AU, surface pressure, and distance from Earth (radio delay of 3 to 22 minutes). <https://nssdc.gsfc.nasa.gov/planetary/factsheet/marsfact.html>
 - **NASA Moon Facts**: length of the lunar day and night. <https://science.nasa.gov/moon/facts/>
 - **NASA MSL Curiosity RAD** (Hassler et al. 2014): radiation on the Mars surface, 0.67 mSv/day. <https://doi.org/10.1126/science.1244797>
 - **NASA life-support reference values**: oxygen 0.84 kg and food about 1.8 kg per astronaut per day. <https://www.nasa.gov/reference/environmental-control-and-life-support-systems-eclss/>
@@ -51,7 +51,7 @@ Build a Junior Astronaut Mission Trainer.
 - **NASA-STD-3001**: career radiation limit, 600 mSv. <https://www.nasa.gov/reference/nasa-std-3001/>
 - **NASA MOXIE on Perseverance**: oxygen from Martian air. <https://www.nasa.gov/missions/mars-2020-perseverance/perseverance-rover/nasas-oxygen-generating-experiment-moxie-completes-mars-mission/>
 - **NASA InSight mission**: dust on solar panels. <https://www.nasa.gov/missions/insight/nasa-retires-insight-mars-lander-mission-after-years-of-science/>
-- **Non-NASA:** Chang'e 4 Lunar Lander Neutrons and Dosimetry (Zhang et al. 2020), radiation on the Moon surface, 1.37 mSv/day. <https://doi.org/10.1126/sciadv.aaz1334>
+- **NASA Moon Fact Sheet**: distance from Earth, used for the radio delay (about 1.3 seconds). <https://nssdc.gsfc.nasa.gov/planetary/factsheet/moonfact.html>
 
 > Add here one resource from the challenge page's "Resources" tab, if the page has one.
 
