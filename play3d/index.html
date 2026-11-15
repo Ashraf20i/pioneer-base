@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Pioneer Base</title>
+  <style>
+    html, body { margin: 0; height: 100%; background: #0a0d17; overflow: hidden; }
+    #wrap { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; }
+    canvas { width: 100%; height: 100%; display: block; }
+    #msg { position: fixed; color: #cde; font: 18px sans-serif; }
+  </style>
+</head>
+<body>
+  <div id="wrap"><canvas id="unity-canvas"></canvas></div>
+  <div id="msg">Loading...</div>
+  <script src="Build/WebGL.loader.js"></script>
+  <script>
+    createUnityInstance(document.querySelector("#unity-canvas"), {
+      dataUrl: "Build/2cfe9153bff317f4e432f01d7eed4548.data",
+      frameworkUrl: "Build/06879bf4c6c8c91a828e266ed9931e99.js",
+      codeUrl: "Build/519a1ce3a6791a1c825b2a127cdeddc4.wasm",
+      streamingAssetsUrl: "StreamingAssets",
+      companyName: "DefaultCompany",
+      productName: "Pioneer Base",
+      productVersion: "1.0"
+    }, function (p) { document.getElementById("msg").textContent = "Loading " + Math.round(p * 100) + "%"; })
+      .then(function () { document.getElementById("msg").style.display = "none"; })
+      .catch(function (e) { document.getElementById("msg").textContent = "Error: " + e; });
+  </script>
+</body>
+</html>

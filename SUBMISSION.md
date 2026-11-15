@@ -66,7 +66,7 @@ The web game above is our main submission. We also built a **3D version** of the
 
 The 3D version does not yet show the Real / Derived / Simplified tags or the sources panel; these stay in the web game.
 
-- 3D version (playable in a browser): `<3D link>`
+- 3D version (playable in a browser): https://ashraf20i.github.io/pioneer-base/play3d/
 
 ## AI-use statement
 
@@ -74,9 +74,9 @@ We used AI tools (Claude, by Anthropic) to help write the code, the automatic te
 
 ## Links
 
-- Playable game: `<GitHub Pages link>`
-- Bonus 3D version: `<3D link>`
-- Source code: `<GitHub repository link>`
+- Playable game: https://ashraf20i.github.io/pioneer-base/
+- Bonus 3D version: https://ashraf20i.github.io/pioneer-base/play3d/
+- Source code: https://github.com/Ashraf20i/pioneer-base
 - 30-second video: `<video link>`
 
 ## References
