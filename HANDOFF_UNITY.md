@@ -45,3 +45,43 @@ Si l'étape 3 n'est pas jouable dimanche à 12h00 : abandonner Unity pour la sou
 - Aucun logo NASA ; mention "An independent student project for the NASA Space Apps Challenge 2026. Not affiliated with or endorsed by NASA."
 - Les valeurs Real ne changent jamais pour équilibrer. Seules les Simplified se règlent.
 - Ne rien pousser sur GitHub, ne rien publier sans l'accord explicite de l'utilisateur.
+
+---
+
+# Mise à jour du 15 novembre (nuit) : version 3D sur la branche `occupy-style-3d`
+
+Lire aussi `DESIGN_3D.md` (objectifs, design, éléments de distinction, inspirations cinéma).
+
+## État
+- `main` : version Unity 2D (néon, vue de dessus), poussée sur GitHub. Ne pas la casser.
+- `occupy-style-3d` : version 3D à la troisième personne, style Occupy Mars. Commits locaux, **pas encore poussée**.
+- Le moteur (`Assets/Scripts/Core`) est identique sur les deux branches. `csharp-tests` passe (16 vérifications).
+
+## Fichiers de la version 3D (`unity-pioneer-base/Assets/Scripts`)
+- `PioneerGame.cs` : déroulement, entrées, menus, cinématiques (ouverture, fin de journée, fins).
+- `PioneerGame.World.cs` : matériaux, terrain, ciel, modules, emplacements à construire.
+- `PioneerGame.Actors.cs` : astronaute, équipage, robot PIP, caméra.
+- `PioneerGame.Fx.cs` : particules, météo, sons générés, réactions aux événements du jour.
+- `PioneerGame.UI.cs` : HUD, fenêtres, carte du module, bulle de PIP, bandeaux, frise.
+- `PioneerGame.Shots.cs` : joueur automatique et captures d'écran.
+- `Assets/Editor/BuildWebGL.cs` : build WebGL, captures, et réglages graphiques (shaders forcés, brouillard conservé).
+- `Assets/link.xml` : garde les types de collision dans le build WebGL.
+
+## Commandes (Unity fermé)
+Captures automatiques (3 missions complètes, environ 2 minutes, images dans `unity-pioneer-base/Shots/`) :
+
+    Unity.exe -batchmode -projectPath "<projet>" -executeMethod BuildWebGL.Shots -pbshots -logFile "%TEMP%\unity_shots.log"
+
+Build WebGL (environ 6 minutes, sortie dans `unity-pioneer-base/Builds/WebGL`) :
+
+    Unity.exe -batchmode -nographics -projectPath "<projet>" -buildTarget WebGL -executeMethod BuildWebGL.Build -logFile "%TEMP%\unity_build.log"
+
+Serveur local : `python -m http.server 8123 --bind 127.0.0.1` dans `Builds/WebGL`, puis `http://127.0.0.1:8123/`.
+
+Vérification rapide de compilation sans Unity : projet `%TEMP%\cc\cc.csproj` (référence les DLL d'Unity), `dotnet build`.
+
+## Pièges rencontrés
+- Les matériaux sont créés par code : les shaders doivent être dans « Always Included Shaders » (fait par `EnsureGraphics`).
+- Le brouillard est activé à l'exécution : garder les variantes de brouillard (fait par `EnsureGraphics`).
+- `CreatePrimitive` a besoin de `SphereCollider` et `CapsuleCollider` : sans `link.xml`, le build WebGL les retire et la console se remplit d'erreurs.
+- Ne pas lancer deux Unity sur le même projet en même temps.

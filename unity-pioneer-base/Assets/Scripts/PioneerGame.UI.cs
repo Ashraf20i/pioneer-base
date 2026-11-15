@@ -230,7 +230,7 @@ public partial class PioneerGame
     void SetGauge(string key, string name, double val, double max, string unit, int? runout, bool invert = false)
     {
         var g = gauges[key]; float f = max <= 0 ? 0 : Mathf.Clamp01((float)(val / max));
-        g.label.text = name + " " + Fmt(val) + (max > 0 ? "/" + Fmt(max) : "") + (unit != "" ? " " + unit : "") + (runout.HasValue ? "  (" + runout.Value + "d left)" : "");
+        g.label.text = name + " " + Fmt(val) + (max > 0 ? "/" + Fmt(max) : "") + (unit != "" ? " " + unit : "") + (runout.HasValue ? "  (" + runout.Value + "d)" : "");
         var rt = (RectTransform)g.fill.transform; rt.anchorMin = Vector2.zero; rt.anchorMax = new Vector2(f, 1);
         float good = invert ? 1 - f : f;
         g.fill.color = good > 0.5f ? new Color(0.3f, 0.8f, 0.45f) : (good > 0.25f ? new Color(0.95f, 0.75f, 0.25f) : new Color(0.9f, 0.3f, 0.3f));

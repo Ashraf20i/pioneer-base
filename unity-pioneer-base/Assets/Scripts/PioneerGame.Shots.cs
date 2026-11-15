@@ -37,6 +37,8 @@ public partial class PioneerGame
         if (detail)
         {
             Snap(tag + "_01_start");
+            camYaw = 165; camPitch = 8; camDist = 5.5f; SnapCamera(); yield return Frames(15); Snap(tag + "_01b_face");
+            camYaw = 0; camPitch = 6; camDist = 16; SnapCamera(); yield return Frames(15); Snap(tag + "_01c_sky");
             player.pos = oxyMod.ipos; player.yaw = -90; camYaw = -60; SnapCamera(); yield return Frames(20); Snap(tag + "_02_card");
             camYaw = 35; camPitch = 28; camDist = 30; player.pos = Ground(new Vector3(-4, 0, -20)); SnapCamera(); yield return Frames(20); Snap(tag + "_03_wide");
             Interact("depot"); yield return Frames(4); Snap(tag + "_04_depot"); DismissModal();

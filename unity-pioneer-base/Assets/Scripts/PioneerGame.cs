@@ -40,6 +40,7 @@ public partial class PioneerGame : MonoBehaviour
         QualitySettings.shadows = ShadowQuality.All; QualitySettings.shadowDistance = 95f; QualitySettings.shadowResolution = ShadowResolution.High;
         QualitySettings.shadowCascades = 1; QualitySettings.pixelLightCount = 4; QualitySettings.antiAliasing = 2;
         world = new GameObject("World").transform;
+        if (font == null) KeepPhysicsTypes();
         InitMaterials(); InitFx(); InitAudio(); BuildSky(); BuildUI();
         if (FindObjectOfType<EventSystem>() == null) new GameObject("EventSystem", typeof(EventSystem), typeof(StandaloneInputModule));
         st = Sim.NewGame(site, 7); plan = Sim.DefaultPlan(st);
@@ -53,6 +54,12 @@ public partial class PioneerGame : MonoBehaviour
         float dt = Mathf.Min(Time.deltaTime, 0.05f);
         if (mode == Mode.Play) HandleInput(dt);
         TickActors(dt); TickWorld(dt); TickCamera(dt); TickSky(dt); TickFx(dt); TickUI(dt);
+    }
+
+    // Never runs. It only tells the WebGL build to keep the collider types that CreatePrimitive needs.
+    void KeepPhysicsTypes()
+    {
+        gameObject.AddComponent<SphereCollider>(); gameObject.AddComponent<CapsuleCollider>(); gameObject.AddComponent<BoxCollider>(); gameObject.AddComponent<MeshCollider>();
     }
 
     // ------------------------------------------------------------------ input
@@ -111,7 +118,7 @@ public partial class PioneerGame : MonoBehaviour
         foreach (var m in mods)
         {
             if (!m.root.gameObject.activeInHierarchy) continue;
-            float d = Flat(player.pos, m.pos) - m.radius; if (d < range && d < bd) { bd = d; best = m; }
+            float d = Mathf.Min(Flat(player.pos, m.ipos), Flat(player.pos, m.pos) - m.radius * 0.6f + 1.2f); if (d < range && d < bd) { bd = d; best = m; }
         }
         return best;
     }

@@ -123,9 +123,19 @@ public partial class PioneerGame
         dir.Normalize();
         player.pos = Collide(player.pos + dir * 5.2f * dt, 0.45f);
         player.yaw = Mathf.Atan2(dir.x, dir.z) * Mathf.Rad2Deg; player.moving = true;
-        puffT -= dt; if (puffT <= 0) { puffT = 0.22f; DustPuff(player.pos, 2); }
+        puffT -= dt;
+        if (puffT <= 0)
+        {
+            puffT = site == "moon" ? 0.42f : 0.32f; DustPuff(player.pos, 2);
+            // boot prints stay on the ground
+            printSide = -printSide;
+            var q = Quaternion.Euler(0, player.yaw, 0);
+            var fp = P(PrimitiveType.Cube, siteRoot, Ground(player.pos + q * new Vector3(0.17f * printSide, 0, 0)) + Vector3.up * 0.015f, new Vector3(0.2f, 0.02f, 0.38f),
+                Lit(site == "mars" ? C(0.36f, 0.18f, 0.11f) : C(0.26f, 0.26f, 0.28f)), new Vector3(0, player.yaw, 0), false);
+            prints.Enqueue(fp); if (prints.Count > 140) { var old = prints.Dequeue(); if (old != null) Destroy(old); }
+        }
     }
-    float puffT;
+    float puffT, printSide = 1f; readonly Queue<GameObject> prints = new Queue<GameObject>();
 
     void TickActors(float dt)
     {

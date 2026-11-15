@@ -38,6 +38,7 @@ public static class BuildWebGL
     {
         EnsureGraphics();
         PlayerSettings.productName = "Pioneer Base";
+        PlayerSettings.stripEngineCode = false;   // objects are created from code, keep every engine class
         PlayerSettings.WebGL.compressionFormat = WebGLCompressionFormat.Disabled;
         PlayerSettings.WebGL.template = "PROJECT:PioneerMin";
         var opts = new BuildPlayerOptions {

@@ -1,0 +1,4 @@
+<linker>
+  <!-- The game builds its objects from code (CreatePrimitive), so keep the physics types in the WebGL build. -->
+  <assembly fullname="UnityEngine.PhysicsModule" preserve="all"/>
+</linker>

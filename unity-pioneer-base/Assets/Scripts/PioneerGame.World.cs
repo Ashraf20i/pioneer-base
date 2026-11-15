@@ -13,6 +13,7 @@ public partial class PioneerGame
     Shader shLit, shGlass, shUnlit, shSprite, shAdd, shBlend;
     Texture2D glowTex, softTex;
     readonly Dictionary<int, Material> litCache = new Dictionary<int, Material>();
+    readonly Dictionary<PrimitiveType, Mesh> primMesh = new Dictionary<PrimitiveType, Mesh>();
 
     static Color C(float r, float g, float b, float a = 1f) { return new Color(r, g, b, a); }
 
@@ -52,11 +53,17 @@ public partial class PioneerGame
 
     GameObject P(PrimitiveType type, Transform parent, Vector3 lpos, Vector3 scale, Material mat, Vector3? euler = null, bool shadow = true)
     {
-        var go = GameObject.CreatePrimitive(type);
-        var col = go.GetComponent<Collider>(); if (col != null) Destroy(col);
+        // one template per shape; every other object reuses its mesh (no colliders are created)
+        Mesh mesh;
+        if (!primMesh.TryGetValue(type, out mesh))
+        {
+            var tmp = GameObject.CreatePrimitive(type); mesh = tmp.GetComponent<MeshFilter>().sharedMesh; primMesh[type] = mesh; Destroy(tmp);
+        }
+        var go = new GameObject(type.ToString());
+        go.AddComponent<MeshFilter>().sharedMesh = mesh;
         go.transform.SetParent(parent, false); go.transform.localPosition = lpos; go.transform.localScale = scale;
         if (euler.HasValue) go.transform.localEulerAngles = euler.Value;
-        var r = go.GetComponent<MeshRenderer>(); r.sharedMaterial = mat;
+        var r = go.AddComponent<MeshRenderer>(); r.sharedMaterial = mat;
         if (!shadow) { r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off; r.receiveShadows = false; }
         return go;
     }
@@ -85,7 +92,7 @@ public partial class PioneerGame
     readonly List<GameObject> crates = new List<GameObject>();
     Mod habMod, oxyMod, labMod, depotMod, landerMod, solarMod, batteryMod, reactorMod;
     Collider terrainCol; GameObject shelterBubble, reliefShip; Material shelterMat;
-    Light habLight; bool initialBuild;
+    Light habLight; bool initialBuild; Transform objMarker;
     float seedX, seedZ; readonly List<Vector4> craterList = new List<Vector4>();
 
     static readonly Vector3 HabPos = new Vector3(0, 0, 0), OxyPos = new Vector3(-13, 0, -1), LabPos = new Vector3(13, 0, -1),
@@ -331,7 +338,7 @@ public partial class PioneerGame
     {
         site = s;
         if (siteRoot != null) Destroy(siteRoot.gameObject);
-        mods.Clear(); modByCol.Clear(); slots.Clear(); billboards.Clear(); shieldRings.Clear(); crates.Clear(); crew.Clear();
+        mods.Clear(); modByCol.Clear(); slots.Clear(); billboards.Clear(); shieldRings.Clear(); crates.Clear(); crew.Clear(); prints.Clear();
         siteRoot = new GameObject("Site").transform; siteRoot.SetParent(world, false);
         var rnd = new System.Random(s == "mars" ? 4 : 9);
         seedX = (float)rnd.NextDouble() * 50f; seedZ = (float)rnd.NextDouble() * 50f;
@@ -477,6 +484,8 @@ public partial class PioneerGame
         }
         P(PrimitiveType.Cylinder, r, new Vector3(0, 0.9f, -1.9f), new Vector3(0.14f, 0.9f, 0.14f), Lit(0.4f, 0.4f, 0.48f));
         Lamp(m, PrimitiveType.Cube, r, new Vector3(0, 1.75f, -1.95f), new Vector3(1.1f, 0.7f, 0.08f), C(1f, 0.85f, 0.3f), new Vector3(-15, 0, 0));
+        // "start here" marker for the first day
+        objMarker = P(PrimitiveType.Cube, siteRoot, m.pos + Vector3.up * 5.6f, Vector3.one * 0.7f, Unlit(C(1f, 0.85f, 0.25f)), new Vector3(45, 45, 0), false).transform;
     }
     void BuildLander()
     {
@@ -562,7 +571,7 @@ public partial class PioneerGame
         }
         Lamp(m, PrimitiveType.Cube, r, new Vector3(0, 2.3f, 0), new Vector3(3.2f, 0.08f, 0.3f), C(1f, 0.35f, 0.9f));
         Lamp(m, PrimitiveType.Cube, r, new Vector3(0, 2.3f, 0), new Vector3(0.3f, 0.08f, 3.2f), C(1f, 0.35f, 0.9f));
-        P(PrimitiveType.Sphere, r, new Vector3(0, 0.5f, 0), new Vector3(5.6f, 5.4f, 5.6f), Glass(C(0.65f, 0.92f, 1f, 0.2f)), null, false);
+        P(PrimitiveType.Sphere, r, new Vector3(0, 0.5f, 0), new Vector3(5.6f, 5.4f, 5.6f), Glass(C(0.65f, 0.92f, 1f, 0.3f)), null, false);
     }
     void BuildDrill(Slot s, Transform r)
     {
@@ -724,6 +733,12 @@ public partial class PioneerGame
                 Vector3 flat = new Vector3(sunDir.x, 0, sunDir.z); float tilt = Mathf.Clamp(90f - Mathf.Max(sunElev, 15f), 10f, 70f);
                 if (flat.sqrMagnitude > 0.001f) s.pivot.rotation = Quaternion.Slerp(s.pivot.rotation, Quaternion.LookRotation(flat) * Quaternion.Euler(tilt, 0, 0), dt * 2f);
             }
+        }
+        if (objMarker != null)
+        {
+            bool show = mode != Mode.Title && st != null && st.day == 1 && !tipBuild;
+            objMarker.gameObject.SetActive(show);
+            if (show) { objMarker.position = depotMod.pos + Vector3.up * (5.6f + Mathf.Sin(t * 3f) * 0.4f); objMarker.Rotate(Vector3.up * 90f * dt, Space.World); }
         }
         bool shelter = plan != null && plan.activity == "shelter" && mode != Mode.Title;
         float sa = shelter ? 0.10f + 0.05f * Mathf.Sin(t * 4f) : 0f; var sc = shelterMat.color; sc.a = Mathf.MoveTowards(sc.a, sa, dt * 0.5f); shelterMat.color = sc;
